@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020-2021, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -281,89 +281,6 @@ template<typename T> static inline std::vector<T> get_vector(const v8::Local<v8:
     return results;
 }
 
-template<> inline std::vector<crypto_bulletproof_t> get_vector<crypto_bulletproof_t>(const v8::Local<v8::Array> &array)
-{
-    std::vector<crypto_bulletproof_t> results;
-
-    const auto array_size = array->Length();
-
-    for (size_t i = 0; i < array_size; ++i)
-    {
-        const auto nan_value = Nan::Get(array, i).ToLocalChecked();
-
-        if (nan_value->IsObject())
-        {
-            const auto proof_obj = get_object(nan_value);
-
-            crypto_bulletproof_t proof(
-                get_crypto_t<crypto_point_t>(proof_obj, "A"),
-                get_crypto_t<crypto_point_t>(proof_obj, "S"),
-                get_crypto_t<crypto_point_t>(proof_obj, "T1"),
-                get_crypto_t<crypto_point_t>(proof_obj, "T2"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "taux"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "mu"),
-                get_vector<crypto_point_t>(proof_obj, "L"),
-                get_vector<crypto_point_t>(proof_obj, "R"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "g"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "h"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "t"));
-
-            results.push_back(proof);
-        }
-    }
-
-    /**
-     * If our resulting array size is not what we expected, then something
-     * in the array was not what we expected it to be which means that the
-     * entire array is garbage
-     */
-    if (results.size() != array_size)
-        results.clear();
-
-    return results;
-}
-
-
-template<>
-inline std::vector<crypto_bulletproof_plus_t> get_vector<crypto_bulletproof_plus_t>(const v8::Local<v8::Array> &array)
-{
-    std::vector<crypto_bulletproof_plus_t> results;
-
-    const auto array_size = array->Length();
-
-    for (size_t i = 0; i < array_size; ++i)
-    {
-        const auto nan_value = Nan::Get(array, i).ToLocalChecked();
-
-        if (nan_value->IsObject())
-        {
-            const auto proof_obj = get_object(nan_value);
-
-            crypto_bulletproof_plus_t proof(
-                get_crypto_t<crypto_point_t>(proof_obj, "A"),
-                get_crypto_t<crypto_point_t>(proof_obj, "A1"),
-                get_crypto_t<crypto_point_t>(proof_obj, "B"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "r1"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "s1"),
-                get_crypto_t<crypto_scalar_t>(proof_obj, "d1"),
-                get_vector<crypto_point_t>(proof_obj, "L"),
-                get_vector<crypto_point_t>(proof_obj, "R"));
-
-            results.push_back(proof);
-        }
-    }
-
-    /**
-     * If our resulting array size is not what we expected, then something
-     * in the array was not what we expected it to be which means that the
-     * entire array is garbage
-     */
-    if (results.size() != array_size)
-        results.clear();
-
-    return results;
-}
-
 template<>
 inline std::vector<std::vector<crypto_pedersen_commitment_t>>
     get_vector<std::vector<crypto_pedersen_commitment_t>>(const v8::Local<v8::Array> &array)
@@ -398,73 +315,6 @@ inline std::vector<std::vector<crypto_pedersen_commitment_t>>
     return results;
 }
 
-static inline v8::Local<v8::Object> to_v8_object(const crypto_clsag_signature_t &signature)
-{
-    v8::Local<v8::Object> jsonObject = Nan::New<v8::Object>();
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("scalars"), to_v8_array(signature.scalars));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("challenge"), STR_TO_NAN_VAL(signature.challenge.to_string()));
-
-    if (signature.commitment_image != Crypto::Z)
-        Nan::Set(
-            jsonObject, STR_TO_NAN_VAL("commitment_image"), STR_TO_NAN_VAL(signature.commitment_image.to_string()));
-
-    return jsonObject;
-}
-
-static inline v8::Local<v8::Object> to_v8_object(const crypto_bulletproof_t &proof)
-{
-    v8::Local<v8::Object> jsonObject = Nan::New<v8::Object>();
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("A"), STR_TO_NAN_VAL(proof.A.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("S"), STR_TO_NAN_VAL(proof.S.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("T1"), STR_TO_NAN_VAL(proof.T1.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("T2"), STR_TO_NAN_VAL(proof.T2.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("taux"), STR_TO_NAN_VAL(proof.taux.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("mu"), STR_TO_NAN_VAL(proof.mu.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("L"), to_v8_array(proof.L));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("R"), to_v8_array(proof.R));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("g"), STR_TO_NAN_VAL(proof.g.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("h"), STR_TO_NAN_VAL(proof.h.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("t"), STR_TO_NAN_VAL(proof.t.to_string()));
-
-    return jsonObject;
-}
-
-static inline v8::Local<v8::Object> to_v8_object(const crypto_bulletproof_plus_t &proof)
-{
-    v8::Local<v8::Object> jsonObject = Nan::New<v8::Object>();
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("A"), STR_TO_NAN_VAL(proof.A.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("A1"), STR_TO_NAN_VAL(proof.A1.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("B"), STR_TO_NAN_VAL(proof.B.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("r1"), STR_TO_NAN_VAL(proof.r1.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("s1"), STR_TO_NAN_VAL(proof.s1.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("d1"), STR_TO_NAN_VAL(proof.d1.to_string()));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("L"), to_v8_array(proof.L));
-
-    Nan::Set(jsonObject, STR_TO_NAN_VAL("R"), to_v8_array(proof.R));
-
-    return jsonObject;
-}
-
 /**
  * Mapped methods from bulletproofs.cpp
  */
@@ -493,7 +343,13 @@ NAN_METHOD(bulletproofs_prove)
 
             Nan::Set(result, 0, Nan::New(false));
 
-            Nan::Set(result, 1, to_v8_object(proof));
+            JSON_INIT();
+
+            proof.toJSON(writer);
+
+            JSON_DUMP(json);
+
+            Nan::Set(result, 1, STR_TO_NAN_VAL(json));
 
             Nan::Set(result, 2, to_v8_array(commitments));
         }
@@ -508,13 +364,24 @@ NAN_METHOD(bulletproofs_verify)
 {
     auto result = Nan::New(false);
 
-    const auto proofs = get_vector<crypto_bulletproof_t>(info, 0);
+    const auto proofs_array = get<std::string>(info, 0);
 
     const auto commitments = get_vector<std::vector<crypto_pedersen_commitment_t>>(info, 1);
 
-    if (!proofs.empty() && !commitments.empty())
+    if (!proofs_array.empty() && !commitments.empty())
         try
         {
+            std::vector<crypto_bulletproof_t> proofs;
+
+            JSON_PARSE(proofs_array);
+
+            for (const auto &elem : get_json_array(body))
+            {
+                const auto proof = crypto_bulletproof_t(elem);
+
+                proofs.push_back(proof);
+            }
+
             const auto success = Crypto::RangeProofs::Bulletproofs::verify(proofs, commitments);
 
             result = Nan::New(success);
@@ -553,9 +420,15 @@ NAN_METHOD(bulletproofsplus_prove)
             const auto [proof, commitments] =
                 Crypto::RangeProofs::BulletproofsPlus::prove(amounts, blinding_factors, N);
 
+            JSON_INIT();
+
+            proof.toJSON(writer);
+
+            JSON_DUMP(json);
+
             Nan::Set(result, 0, Nan::New(false));
 
-            Nan::Set(result, 1, to_v8_object(proof));
+            Nan::Set(result, 1, STR_TO_NAN_VAL(json));
 
             Nan::Set(result, 2, to_v8_array(commitments));
         }
@@ -570,13 +443,24 @@ NAN_METHOD(bulletproofsplus_verify)
 {
     auto result = Nan::New(false);
 
-    const auto proofs = get_vector<crypto_bulletproof_plus_t>(info, 0);
+    const auto proofs_array = get<std::string>(info, 0);
 
     const auto commitments = get_vector<std::vector<crypto_pedersen_commitment_t>>(info, 1);
 
-    if (!proofs.empty() && !commitments.empty())
+    if (!proofs_array.empty() && !commitments.empty())
         try
         {
+            std::vector<crypto_bulletproof_plus_t> proofs;
+
+            JSON_PARSE(proofs_array);
+
+            for (const auto &elem : get_json_array(body))
+            {
+                const auto proof = crypto_bulletproof_plus_t(elem);
+
+                proofs.push_back(proof);
+            }
+
             const auto success = Crypto::RangeProofs::BulletproofsPlus::verify(proofs, commitments);
 
             result = Nan::New(success);
@@ -591,6 +475,20 @@ NAN_METHOD(bulletproofsplus_verify)
 /**
  * Mapped methods from crypto_common.cpp
  */
+
+NAN_METHOD(calculate_base2_exponent)
+{
+    auto result = STR_TO_NAN_VAL("");
+
+    const auto value = get<uint32_t>(info, 0);
+
+    const auto [method_success, exponent] = Crypto::calculate_base2_exponent(value);
+
+    if (method_success)
+        result = Nan::New(uint32_t(exponent));
+
+    info.GetReturnValue().Set(prepare(method_success, result));
+}
 
 NAN_METHOD(check_point)
 {
@@ -731,6 +629,30 @@ NAN_METHOD(generate_key_image)
         try
         {
             const auto key = Crypto::generate_key_image(public_key, secret_key, partial_key_images);
+
+            result = STR_TO_NAN_VAL(key.to_string());
+
+            success = true;
+        }
+        catch (...)
+        {
+        }
+
+    info.GetReturnValue().Set(prepare(success, result));
+}
+
+NAN_METHOD(generate_key_image_v2)
+{
+    auto result = STR_TO_NAN_VAL("");
+
+    bool success = false;
+
+    const auto secret_key = get<std::string>(info, 0);
+
+    if (!secret_key.empty())
+        try
+        {
+            const auto key = Crypto::generate_key_image_v2(secret_key);
 
             result = STR_TO_NAN_VAL(key.to_string());
 
@@ -1440,6 +1362,112 @@ NAN_METHOD(toggle_masked_amount)
 }
 
 /**
+ * Mapped methods from ring_signature_arcturus.cpp
+ */
+NAN_METHOD(arcturus_prove)
+{
+    auto result = STR_TO_NAN_VAL("");
+
+    bool success = false;
+
+    const auto message_digest = get<std::string>(info, 0);
+
+    const auto public_keys = get_vector<crypto_public_key_t>(info, 1);
+
+    const auto key_images = get_vector<crypto_key_image_t>(info, 2);
+
+    const auto input_commitments = get_vector<crypto_pedersen_commitment_t>(info, 3);
+
+    const auto output_commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
+
+    const auto real_output_indexes = get_vector<uint64_t>(info, 5);
+
+    const auto secret_ephemerals = get_vector<crypto_secret_key_t>(info, 6);
+
+    const auto input_blinding_factors = get_vector<crypto_blinding_factor_t>(info, 7);
+
+    const auto output_blinding_factors = get_vector<crypto_blinding_factor_t>(info, 8);
+
+    const auto input_amounts = get_vector<uint64_t>(info, 9);
+
+    const auto output_amounts = get_vector<uint64_t>(info, 10);
+
+    if (!message_digest.empty() && !public_keys.empty() && !key_images.empty() && !input_commitments.empty()
+        && !output_commitments.empty() && !real_output_indexes.empty() && !secret_ephemerals.empty()
+        && !input_blinding_factors.empty() && !output_blinding_factors.empty() && !input_amounts.empty()
+        && !output_amounts.empty())
+        try
+        {
+            const auto [method_success, signature] = Crypto::RingSignature::Arcturus::prove(
+                message_digest,
+                public_keys,
+                key_images,
+                input_commitments,
+                output_commitments,
+                real_output_indexes,
+                secret_ephemerals,
+                input_blinding_factors,
+                output_blinding_factors,
+                input_amounts,
+                output_amounts);
+
+            if (method_success)
+            {
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(json);
+
+                result = STR_TO_NAN_VAL(json);
+            }
+
+            success = method_success;
+        }
+        catch (...)
+        {
+        }
+
+    info.GetReturnValue().Set(prepare(success, result));
+}
+
+NAN_METHOD(arcturus_verify)
+{
+    auto result = Nan::New(false);
+
+    const auto message_digest = get<std::string>(info, 0);
+
+    const auto public_keys = get_vector<crypto_public_key_t>(info, 1);
+
+    const auto key_images = get_vector<crypto_key_image_t>(info, 2);
+
+    const auto input_commitments = get_vector<crypto_pedersen_commitment_t>(info, 3);
+
+    const auto output_commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
+
+    const auto signature_obj = get<std::string>(info, 5);
+
+    if (!message_digest.empty() && !public_keys.empty() && !key_images.empty() && !input_commitments.empty()
+        && !output_commitments.empty() && !signature_obj.empty())
+        try
+        {
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_arcturus_signature_t(body);
+
+            const auto success = Crypto::RingSignature::Arcturus::verify(
+                message_digest, public_keys, key_images, input_commitments, output_commitments, signature);
+
+            result = Nan::New(success);
+        }
+        catch (...)
+        {
+        }
+
+    info.GetReturnValue().Set(result);
+}
+
+/**
  * Mapped methods from ring_signature_borromean.cpp
  */
 
@@ -1605,19 +1633,18 @@ NAN_METHOD(clsag_check_ring_signature)
 
     const auto public_keys = get_vector<crypto_public_key_t>(info, 2);
 
-    const auto signature_obj = get_object(info, 3);
+    const auto signature_obj = get<std::string>(info, 3);
 
     const auto commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
 
     const auto pseudo_commitment = get_crypto_t<crypto_pedersen_commitment_t>(info, 5);
 
-    if (!message_digest.empty() && !key_image.empty() && !public_keys.empty())
+    if (!message_digest.empty() && !key_image.empty() && !public_keys.empty() && !signature_obj.empty())
         try
         {
-            crypto_clsag_signature_t signature(
-                get_vector<crypto_scalar_t>(signature_obj, "scalars"),
-                get_crypto_t<crypto_scalar_t>(signature_obj, "challenge"),
-                get_crypto_t<crypto_key_image_t>(signature_obj, "commitment_image"));
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_clsag_signature_t(body);
 
             success = Crypto::RingSignature::CLSAG::check_ring_signature(
                 message_digest, key_image, public_keys, signature, commitments, pseudo_commitment);
@@ -1639,7 +1666,7 @@ NAN_METHOD(clsag_complete_ring_signature)
 
     const auto real_output_index = get<uint32_t>(info, 1);
 
-    const auto signature_obj = get_object(info, 2);
+    const auto signature_obj = get<std::string>(info, 2);
 
     const auto h = get_vector<crypto_scalar_t>(info, 3);
 
@@ -1650,16 +1677,23 @@ NAN_METHOD(clsag_complete_ring_signature)
     if (!signing_scalar.empty() && !h.empty() && !mu_P.empty())
         try
         {
-            crypto_clsag_signature_t signature(
-                get_vector<crypto_scalar_t>(signature_obj, "scalars"),
-                get_crypto_t<crypto_scalar_t>(signature_obj, "challenge"),
-                get_crypto_t<crypto_key_image_t>(signature_obj, "commitment_image"));
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_clsag_signature_t(body);
 
             const auto [method_success, sig] = Crypto::RingSignature::CLSAG::complete_ring_signature(
                 signing_scalar, real_output_index, signature, h, mu_P, partial_signing_scalars);
 
             if (method_success)
-                result = to_v8_object(sig);
+            {
+                JSON_INIT();
+
+                sig.toJSON(writer);
+
+                JSON_DUMP(json);
+
+                result = STR_TO_NAN_VAL(json);
+            }
 
             success = method_success;
         }
@@ -1730,7 +1764,15 @@ NAN_METHOD(clsag_generate_ring_signature)
                 pseudo_commitment);
 
             if (method_success)
-                result = to_v8_object(signature);
+            {
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(json);
+
+                result = STR_TO_NAN_VAL(json);
+            }
 
             success = method_success;
         }
@@ -1780,7 +1822,13 @@ NAN_METHOD(clsag_prepare_ring_signature)
             {
                 Nan::Set(result, 0, Nan::New(false));
 
-                Nan::Set(result, 1, to_v8_object(signature));
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(json);
+
+                Nan::Set(result, 1, STR_TO_NAN_VAL(json));
 
                 Nan::Set(result, 2, to_v8_array(h));
 
@@ -1947,6 +1995,8 @@ NAN_MODULE_INIT(InitModule)
 
     // Mapped methods from crypto_common.cpp
     {
+        NAN_EXPORT(target, calculate_base2_exponent);
+
         NAN_EXPORT(target, check_point);
 
         NAN_EXPORT(target, check_scalar);
@@ -1960,6 +2010,8 @@ NAN_MODULE_INIT(InitModule)
         NAN_EXPORT(target, generate_key_derivation);
 
         NAN_EXPORT(target, generate_key_image);
+
+        NAN_EXPORT(target, generate_key_image_v2);
 
         NAN_EXPORT(target, generate_keys);
 
@@ -2027,6 +2079,13 @@ NAN_MODULE_INIT(InitModule)
         NAN_EXPORT(target, generate_pseudo_commitments);
 
         NAN_EXPORT(target, toggle_masked_amount);
+    }
+
+    // Mapped methods from ring_signature_arcturus.cpp
+    {
+        NAN_EXPORT(target, arcturus_prove);
+
+        NAN_EXPORT(target, arcturus_verify);
     }
 
     // Mapped methods from ring_signature_borromean.cpp

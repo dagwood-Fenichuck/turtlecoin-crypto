@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -27,12 +27,16 @@
 #ifndef CRYPTO_TYPES_H
 #define CRYPTO_TYPES_H
 
+#include "../external/ed25519/include/ed25519.h"
 #include "serializer.h"
+#include "string_tools.h"
 
 #include <cstring>
-#include <ed25519/include/ed25519.h>
 #include <stdexcept>
-#include <string_tools.h>
+
+#define SCALAR_OR_THROW(value) \
+    if (!value.check())        \
+    throw std::invalid_argument(std::string(#value) + " is not a scalar")
 
 /**
  * l = 2^252 + 2774231777737235353585193779
@@ -282,7 +286,7 @@ typedef struct EllipticCurvePoint
      * Returns a pointer to a ge_cached representation of the point
      * @return
      */
-    const ge_cached cached() const
+    [[nodiscard]] ge_cached cached() const
     {
         return cached_point;
     }
@@ -291,7 +295,7 @@ typedef struct EllipticCurvePoint
      * Checks to confirm that the point is indeed a point
      * @return
      */
-    bool check() const
+    [[nodiscard]] bool check() const
     {
         ge_p3 tmp;
 
@@ -302,7 +306,7 @@ typedef struct EllipticCurvePoint
      * Checks to confirm that the point is in our subgroup
      * @return
      */
-    bool check_subgroup() const
+    [[nodiscard]] bool check_subgroup() const
     {
         ge_dsmp tmp;
 
@@ -315,7 +319,7 @@ typedef struct EllipticCurvePoint
      * Returns a pointer to the underlying structure data
      * @return
      */
-    const uint8_t *data() const
+    [[nodiscard]] const uint8_t *data() const
     {
         return bytes;
     }
@@ -324,7 +328,7 @@ typedef struct EllipticCurvePoint
      * Computes 8P
      * @return
      */
-    EllipticCurvePoint mul8() const
+    [[nodiscard]] EllipticCurvePoint mul8() const
     {
         ge_p1p1 tmp;
 
@@ -345,7 +349,7 @@ typedef struct EllipticCurvePoint
      * Returns the negation of the point
      * @return
      */
-    EllipticCurvePoint negate() const
+    [[nodiscard]] EllipticCurvePoint negate() const
     {
         EllipticCurvePoint Z({0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -358,20 +362,29 @@ typedef struct EllipticCurvePoint
      * Returns a pointer to a ge_p3 representation of the point
      * @return
      */
-    const ge_p3 p3() const
+    [[nodiscard]] ge_p3 p3() const
     {
         return point3;
     }
 
     /**
      * Serializes the struct to a byte array
+     * @param writer
+     */
+    void serialize(serializer_t &writer) const
+    {
+        writer.bytes(&bytes, sizeof(bytes));
+    }
+
+    /**
+     * Serializes the struct to a byte array
      * @return
      */
-    std::vector<uint8_t> serialize() const
+    [[nodiscard]] std::vector<uint8_t> serialize() const
     {
         serializer_t writer;
 
-        writer.bytes(&bytes, sizeof(bytes));
+        serialize(writer);
 
         return writer.vector();
     }
@@ -381,7 +394,7 @@ typedef struct EllipticCurvePoint
      * size of the key in bytes
      * @return
      */
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
         return sizeof(bytes);
     }
@@ -399,7 +412,7 @@ typedef struct EllipticCurvePoint
      * Encodes the point as a hexadecimal string
      * @return
      */
-    std::string to_string() const
+    [[nodiscard]] std::string to_string() const
     {
         return Crypto::StringTools::to_hex(bytes, sizeof(bytes));
     }
@@ -443,10 +456,14 @@ namespace Crypto
                               0x15, 0x99, 0x12, 0x82, 0x3a, 0x87, 0x87, 0xc1, 0x18, 0x52, 0x97,
                               0x74, 0x5f, 0xb2, 0x30, 0xe2, 0x64, 0x6c, 0xd7, 0x7e, 0xf6};
 
+    const crypto_point_t U = {0x3b, 0x51, 0x37, 0xf1, 0x67, 0x4c, 0x55, 0xf9, 0xad, 0x2b, 0x5d,
+                              0xbf, 0x14, 0x99, 0x69, 0xc5, 0x62, 0x4a, 0x84, 0x36, 0xbc, 0xfb,
+                              0x99, 0xc6, 0xac, 0x30, 0x1b, 0x4b, 0x31, 0x21, 0x93, 0xf2};
+
     // Zero Point (0,0)
-    const crypto_point_t U = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    const crypto_point_t ZP = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
     // Neutral Point (0,1)
     const crypto_point_t Z = {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -684,7 +701,7 @@ typedef struct EllipticCurveScalar
      * @param B
      * @return
      */
-    EllipticCurvePoint
+    [[nodiscard]] EllipticCurvePoint
         dbl_mult(const EllipticCurvePoint &A, const EllipticCurveScalar &b, const EllipticCurvePoint &B) const
     {
         ge_p1p1 temp_p1p1;
@@ -714,7 +731,7 @@ typedef struct EllipticCurveScalar
 
         EllipticCurvePoint point(temp_p3);
 
-        return point != Crypto::U ? point : Crypto::Z;
+        return point != Crypto::ZP ? point : Crypto::Z;
     }
 
     /**
@@ -750,7 +767,7 @@ typedef struct EllipticCurveScalar
      * Checks to validate that the scalar is indeed a scalar
      * @return
      */
-    bool check() const
+    [[nodiscard]] bool check() const
     {
         return sc_check(bytes) == 0;
     }
@@ -759,7 +776,7 @@ typedef struct EllipticCurveScalar
      * Returns a pointer to the underlying structure data
      * @return
      */
-    const uint8_t *data() const
+    [[nodiscard]] const uint8_t *data() const
     {
         return bytes;
     }
@@ -768,7 +785,7 @@ typedef struct EllipticCurveScalar
      * Provides the inversion of the scalar (1/x)
      * @return
      */
-    EllipticCurveScalar invert() const
+    [[nodiscard]] EllipticCurveScalar invert() const
     {
         return pow(l_inversion_exponent);
     }
@@ -777,7 +794,7 @@ typedef struct EllipticCurveScalar
      * Checks to validate that the scalar is NOT zero (0)
      * @return
      */
-    bool is_nonzero() const
+    [[nodiscard]] bool is_nonzero() const
     {
         return sc_isnonzero(bytes) == 0;
     }
@@ -786,7 +803,7 @@ typedef struct EllipticCurveScalar
      * Returns the negation of the scalar (-x)
      * @return
      */
-    EllipticCurveScalar negate() const
+    [[nodiscard]] EllipticCurveScalar negate() const
     {
         EllipticCurveScalar zero({0});
 
@@ -799,7 +816,7 @@ typedef struct EllipticCurveScalar
      * @param exponent
      * @return
      */
-    EllipticCurveScalar pow(const EllipticCurveScalar &exponent) const
+    [[nodiscard]] EllipticCurveScalar pow(const EllipticCurveScalar &exponent) const
     {
         // convert our exponent to a vector of 256 individual bits
         const auto bits = exponent.to_bits(256);
@@ -837,7 +854,8 @@ typedef struct EllipticCurveScalar
      * @param descending
      * @return
      */
-    std::vector<EllipticCurveScalar> pow_expand(size_t count, bool descending = false, bool include_zero = true) const
+    [[nodiscard]] std::vector<EllipticCurveScalar>
+        pow_expand(size_t count, bool descending = false, bool include_zero = true) const
     {
         std::vector<EllipticCurveScalar> result(count);
 
@@ -864,7 +882,7 @@ typedef struct EllipticCurveScalar
      * @param count
      * @return
      */
-    EllipticCurveScalar pow_sum(size_t count) const
+    [[nodiscard]] EllipticCurveScalar pow_sum(size_t count) const
     {
         const bool is_power_of_2 = (count & (count - 1)) == 0;
 
@@ -895,13 +913,22 @@ typedef struct EllipticCurveScalar
 
     /**
      * Serializes the struct to a byte array
+     * @param writer
+     */
+    void serialize(serializer_t &writer) const
+    {
+        writer.bytes(&bytes, sizeof(bytes));
+    }
+
+    /**
+     * Serializes the struct to a byte array
      * @return
      */
-    std::vector<uint8_t> serialize() const
+    [[nodiscard]] std::vector<uint8_t> serialize() const
     {
         serializer_t writer;
 
-        writer.bytes(&bytes, sizeof(bytes));
+        serialize(writer);
 
         return writer.vector();
     }
@@ -912,7 +939,7 @@ typedef struct EllipticCurveScalar
      * two structure types (point & scalar)
      * @return
      */
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
         return sizeof(bytes);
     }
@@ -922,7 +949,7 @@ typedef struct EllipticCurveScalar
      * r = (s ^ 2)
      * @return
      */
-    EllipticCurveScalar squared() const
+    [[nodiscard]] EllipticCurveScalar squared() const
     {
         EllipticCurveScalar result;
 
@@ -937,7 +964,7 @@ typedef struct EllipticCurveScalar
      * @param bits
      * @return
      */
-    std::vector<EllipticCurveScalar> to_bits(size_t bits = 256) const
+    [[nodiscard]] std::vector<EllipticCurveScalar> to_bits(size_t bits = 256) const
     {
         if (bits > 256)
             throw std::range_error("requested bit length exceeds maximum scalar bit length");
@@ -992,7 +1019,7 @@ typedef struct EllipticCurveScalar
      * @param byte_length
      * @return
      */
-    std::string to_string(size_t byte_length = 32) const
+    [[nodiscard]] std::string to_string(size_t byte_length = 32) const
     {
         if (byte_length > 32)
             throw std::range_error("length cannot exceed the size of the scalar");
@@ -1004,7 +1031,7 @@ typedef struct EllipticCurveScalar
      * Encodes the first 8 bytes of the scalar as a uint64_t
      * @return
      */
-    uint64_t to_uint64_t() const
+    [[nodiscard]] uint64_t to_uint64_t() const
     {
         uint64_t result;
 
@@ -1111,7 +1138,7 @@ static inline crypto_scalar_t pointToScalar(const crypto_point_t &point)
 
     std::memcpy(&bytes, point.data(), sizeof(bytes));
 
-    return crypto_scalar_t(bytes);
+    return crypto_scalar_t(bytes, false);
 }
 
 #define PointToScalar(a) pointToScalar(a)
@@ -1145,6 +1172,14 @@ typedef struct Signature
 
     Signature(std::initializer_list<uint8_t> LR)
     {
+        std::copy(LR.begin(), LR.end(), std::begin(bytes));
+    }
+
+    Signature(const std::vector<uint8_t> &LR)
+    {
+        if (LR.size() < size())
+            throw std::runtime_error("could not load signature");
+
         std::copy(LR.begin(), LR.end(), std::begin(bytes));
     }
 
@@ -1187,6 +1222,11 @@ typedef struct Signature
      * Simple operator overloads for comparison
      */
 
+    unsigned char operator[](int i) const
+    {
+        return bytes[i];
+    }
+
     bool operator==(const Signature &other) const
     {
         return std::equal(std::begin(bytes), std::end(bytes), std::begin(other.bytes));
@@ -1199,13 +1239,22 @@ typedef struct Signature
 
     /**
      * Serializes the struct to a byte array
+     * @param writer
+     */
+    void serialize(serializer_t &writer) const
+    {
+        writer.bytes(&bytes, sizeof(bytes));
+    }
+
+    /**
+     * Serializes the struct to a byte array
      * @return
      */
-    std::vector<uint8_t> serialize() const
+    [[nodiscard]] std::vector<uint8_t> serialize() const
     {
         serializer_t writer;
 
-        writer.bytes(&bytes, sizeof(bytes));
+        serialize(writer);
 
         return writer.vector();
     }
@@ -1214,7 +1263,7 @@ typedef struct Signature
      * Use this method instead of sizeof(Signature) to get the resulting size of the value in bytes
      * @return
      */
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
         return sizeof(bytes);
     }
@@ -1232,7 +1281,7 @@ typedef struct Signature
      * Encodes a signature as a hexadecimal string
      * @return
      */
-    std::string to_string() const
+    [[nodiscard]] std::string to_string() const
     {
         return Crypto::StringTools::to_hex(bytes, sizeof(bytes));
     }

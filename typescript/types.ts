@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -57,6 +57,24 @@ export interface ModuleSettings {
 }
 
 /**
+ * Represents an Arcturus proof
+ */
+export interface crypto_arcturus_signature_t {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+    X: string[];
+    Y: string[];
+    Z: string[];
+    f: string[][][];
+    zA: string;
+    zC: string;
+    zR: string[];
+    zS: string;
+}
+
+/**
  * Represents a Bulletproof proof
  */
 export interface crypto_bulletproof_t {
@@ -100,6 +118,18 @@ export interface crypto_clsag_signature_t {
  * Defines all of the user overrideable crypto methods
  */
 export interface IConfig {
+    arcturus_prove?: (message_digest: string,
+                      public_keys: string[],
+                      key_images: string[],
+                      input_commitments: string[],
+                      output_commitments: string[],
+                      real_output_indexes: number[],
+                      secret_ephemerals: string[],
+                      input_blinding_factors: string[],
+                      output_blinding_factors: string[],
+                      input_amounts: number[],
+                      output_amounts: number[]) => Promise<crypto_arcturus_signature_t>;
+
     borromean_check_ring_signature?:
         (message_digest: string, key_image: string, public_keys: string[], signature: string[]) => Promise<boolean>;
     borromean_complete_ring_signature?:
@@ -169,6 +199,7 @@ export interface IConfig {
     generate_signature?: (message_digest: string, secret_key: string) => Promise<string>;
     prepare_signature?: (message_digest: string, public_key: string) => Promise<string>;
 
+    calculate_base2_exponent?: (value: number) => Promise<number>;
     check_point?: (point: string) => Promise<boolean>;
     check_scalar?: (scalar: string) => Promise<boolean>;
     derivation_to_scalar?: (derivation: string, output_index: number) => Promise<string>;
@@ -177,6 +208,7 @@ export interface IConfig {
     generate_key_derivation?: (public_key: string, secret_key: string) => Promise<string>;
     generate_key_image?:
         (public_ephemeral: string, secret_ephemeral: string, partial_key_images: string[]) => Promise<string>;
+    generate_key_image_v2?: (secret_ephemeral: string) => Promise<string>;
     generate_keys?: () => Promise<[string, string]>;
     generate_subwallet_keys?: (secret_spend_key: string, subwallet_index: number) => Promise<[string, string]>;
     generate_view_from_spend?: (secret_spend_key: string) => Promise<string>;

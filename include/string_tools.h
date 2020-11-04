@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -37,6 +37,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#define DEBUG_PRINT(val) std::cout << #val << ": " << val << std::endl
 
 namespace Crypto::StringTools
 {

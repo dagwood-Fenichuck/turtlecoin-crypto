@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,17 +24,51 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from code by Zpalmtree found at
+// Inspired by the work of Zpalmtree found at
 // https://github.com/turtlecoin/turtlecoin/blob/cab5c65d243878dc0c9e1ac964614e8e431b6c77/include/JsonHelper.h
 
 #ifndef CRYPTO_JSON_HELPER_H
 #define CRYPTO_JSON_HELPER_H
 
-#include <rapidjson/include/rapidjson/document.h>
-#include <rapidjson/include/rapidjson/reader.h>
-#include <rapidjson/include/rapidjson/stringbuffer.h>
-#include <rapidjson/include/rapidjson/writer.h>
+#include "../external/rapidjson/include/rapidjson/document.h"
+#include "../external/rapidjson/include/rapidjson/reader.h"
+#include "../external/rapidjson/include/rapidjson/stringbuffer.h"
+#include "../external/rapidjson/include/rapidjson/writer.h"
+
 #include <stdexcept>
+
+/**
+ * JSON Helpers for repetitive code
+ */
+#define JSON_OBJECT_OR_THROW() \
+    if (!j.IsObject())         \
+    throw std::invalid_argument("JSON value is of the wrong type")
+#define JSON_MEMBER_OR_THROW(value)         \
+    if (!has_member(j, std::string(value))) \
+    throw std::invalid_argument(std::string(value) + " not found in JSON object")
+#define JSON_IF_MEMBER(value) if (has_member(j, std::string(value)))
+#define JSON_OBJECT_CONSTRUCTORS(objtype, funccall)       \
+    objtype(const JSONValue &j)                           \
+    {                                                     \
+        JSON_OBJECT_OR_THROW();                           \
+        funccall(j);                                      \
+    }                                                     \
+                                                          \
+    objtype(const JSONValue &val, const std::string &key) \
+    {                                                     \
+        const auto &j = get_json_value(val, key);         \
+        JSON_OBJECT_OR_THROW();                           \
+        funccall(j);                                      \
+    }
+#define JSON_FROM_FUNC(name) void name(const JSONValue &j)
+#define JSON_INIT()                 \
+    rapidjson::StringBuffer buffer; \
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer)
+#define JSON_DUMP(str) const std::string str = buffer.GetString()
+#define JSON_PARSE(json)                          \
+    rapidjson::Document body;                     \
+    if (body.Parse(json.c_str()).HasParseError()) \
+    throw std::invalid_argument("Could not parse JSON")
 
 typedef rapidjson::GenericObject<
     true,

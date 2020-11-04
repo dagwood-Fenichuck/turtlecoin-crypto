@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from Python code by Sarang Noether found at
+// Inspired by the work of Sarang Noether at
 // https://github.com/SarangNoether/skunkworks/tree/pybullet
 
 #include "bulletproofs.h"
@@ -176,14 +176,13 @@ namespace Crypto::RangeProofs::Bulletproofs
             throw std::range_error("N must not exceed 64-bits");
 
         if (amounts.size() != blinding_factors.size())
-            throw std::runtime_error("amounts and gamma must be the same size");
+            throw std::runtime_error("amounts and blinding factors must be the same size");
 
         if (amounts.empty())
             throw std::runtime_error("amounts is empty");
 
         for (const auto &blinding_factor : blinding_factors)
-            if (!blinding_factor.check())
-                throw std::runtime_error("invalid gamma input");
+            SCALAR_OR_THROW(blinding_factor);
 
         const auto M = amounts.size();
 
@@ -207,7 +206,7 @@ namespace Crypto::RangeProofs::Bulletproofs
         for (const auto &bit : aL.scalars)
             aR.append(bit - Crypto::ONE);
 
-    try_again:
+    retry:
         const auto alpha = Crypto::random_scalar();
 
         crypto_scalar_transcript_t tr(BULLETPROOFS_DOMAIN_0);
@@ -229,14 +228,14 @@ namespace Crypto::RangeProofs::Bulletproofs
         const auto y = tr.challenge();
 
         if (y == Crypto::ZERO)
-            goto try_again;
+            goto retry;
 
         tr.update(y);
 
         const auto z = tr.challenge();
 
         if (z == Crypto::ZERO)
-            goto try_again;
+            goto retry;
 
         const auto y_inv = y.invert();
 
@@ -283,7 +282,7 @@ namespace Crypto::RangeProofs::Bulletproofs
         const auto x = tr.challenge();
 
         if (x == Crypto::ZERO)
-            goto try_again;
+            goto retry;
 
         auto taux = (tau1 * x) + (tau2 * x.squared());
 
@@ -307,7 +306,7 @@ namespace Crypto::RangeProofs::Bulletproofs
         const auto x_ip = tr.challenge();
 
         if (x_ip == Crypto::ZERO)
-            goto try_again;
+            goto retry;
 
         crypto_point_vector_t Hi_points(Hi.size());
 
@@ -325,7 +324,7 @@ namespace Crypto::RangeProofs::Bulletproofs
         }
         catch (...)
         {
-            goto try_again;
+            goto retry;
         }
     }
 
@@ -374,6 +373,9 @@ namespace Crypto::RangeProofs::Bulletproofs
                 return false;
 
             if (proof.L.size() != proof.R.size())
+                return false;
+
+            if (!proof.taux.check() || !proof.mu.check() || !proof.g.check() || !proof.h.check() || !proof.t.check())
                 return false;
 
             const auto M = size_t(powers_of_two[proof.L.size()].to_uint64_t()) / N;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -57,6 +57,9 @@ namespace Crypto::RingSignature::Borromean
 
         for (size_t i = 0; i < ring_size; i++)
         {
+            if (!signature[i].LR.L.check() || !signature[i].LR.R.check())
+                return false;
+
             // HP = [Hp(P)] mod l
             const auto HP = hash_to_point(public_keys[i]);
 
@@ -85,6 +88,22 @@ namespace Crypto::RingSignature::Borromean
         if (signature.empty() || real_output_index >= signature.size())
             return {false, {}};
 
+        try
+        {
+            SCALAR_OR_THROW(signing_scalar);
+
+            for (const auto &sig : signature)
+            {
+                SCALAR_OR_THROW(sig.LR.L);
+
+                SCALAR_OR_THROW(sig.LR.R);
+            }
+        }
+        catch (...)
+        {
+            return {false, {}};
+        }
+
         std::vector<crypto_signature_t> finalized_signature(signature);
 
         /**
@@ -99,6 +118,16 @@ namespace Crypto::RingSignature::Borromean
         }
         else /** Otherwise, we're using partial signing scalars (multisig) */
         {
+            try
+            {
+                for (const auto &partial_signing_scalar : partial_signing_scalars)
+                    SCALAR_OR_THROW(partial_signing_scalar);
+            }
+            catch (...)
+            {
+                return {false, {}};
+            }
+
             const auto partial_scalar = generate_partial_signing_scalar(real_output_index, signature, signing_scalar);
 
             // create a copy of our partial signing scalars for computation and handling
@@ -131,6 +160,15 @@ namespace Crypto::RingSignature::Borromean
         const std::vector<crypto_signature_t> &signature,
         const crypto_secret_key_t &spend_secret_key)
     {
+        SCALAR_OR_THROW(spend_secret_key);
+
+        for (const auto &sig : signature)
+        {
+            SCALAR_OR_THROW(sig.LR.L);
+
+            SCALAR_OR_THROW(sig.LR.R);
+        }
+
         if (signature.empty() || real_output_index >= signature.size())
             throw std::range_error("real output index must not exceed signature set size");
 
@@ -143,6 +181,15 @@ namespace Crypto::RingSignature::Borromean
         const crypto_secret_key_t &secret_ephemeral,
         const std::vector<crypto_public_key_t> &public_keys)
     {
+        try
+        {
+            SCALAR_OR_THROW(secret_ephemeral);
+        }
+        catch (...)
+        {
+            return {false, {}};
+        }
+
         const auto ring_size = public_keys.size();
 
         // find our real output in the list

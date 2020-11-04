@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from Python code by Sarang Noether found at
+// Inspired by the work of Sarang Noether at
 // https://github.com/SarangNoether/skunkworks/tree/pybullet-plus
 
 #ifndef CRYPTO_RANGEPROOFS_BULLETPROOFS_PLUS_H
@@ -54,41 +54,83 @@ typedef struct BulletproofPlus
     {
     }
 
-    BulletproofPlus(const JSONValue &j)
-    {
-        from_json(j);
-    }
-
-    BulletproofPlus(const JSONValue &j, const std::string &key)
-    {
-        const auto &val = get_json_value(j, key);
-
-        if (!val.IsObject())
-            throw std::invalid_argument("JSON value is of the wrong type");
-
-        from_json(val);
-    }
+    JSON_OBJECT_CONSTRUCTORS(BulletproofPlus, from_json)
 
     BulletproofPlus(const std::string &input)
     {
         const auto string = Crypto::StringTools::from_hex(input);
 
-        deserialize(string);
+        deserializer_t reader(string);
+
+        deserialize(reader);
     }
 
     BulletproofPlus(const std::vector<uint8_t> &input)
     {
-        deserialize(input);
+        deserializer_t reader(input);
+
+        deserialize(reader);
+    }
+
+    BulletproofPlus(deserializer_t &reader)
+    {
+        deserialize(reader);
+    }
+
+    /**
+     * Deserializes the struct from a byte array
+     * @param reader
+     */
+    void deserialize(deserializer_t &reader)
+    {
+        A = reader.key<crypto_point_t>();
+
+        A1 = reader.key<crypto_point_t>();
+
+        B = reader.key<crypto_point_t>();
+
+        r1 = reader.key<crypto_scalar_t>();
+
+        s1 = reader.key<crypto_scalar_t>();
+
+        d1 = reader.key<crypto_scalar_t>();
+
+        {
+            const auto count = reader.varint<uint64_t>();
+
+            L.clear();
+
+            for (size_t i = 0; i < count; ++i)
+                L.push_back(reader.key<crypto_point_t>());
+        }
+
+        {
+            const auto count = reader.varint<uint64_t>();
+
+            R.clear();
+
+            for (size_t i = 0; i < count; ++i)
+                R.push_back(reader.key<crypto_point_t>());
+        }
+    }
+
+    /**
+     * Provides the hash of the serialized structure
+     * @return
+     */
+    [[nodiscard]] crypto_hash_t hash() const
+    {
+        const auto serialized = serialize();
+
+        return Crypto::Hashing::sha3(serialized.data(), serialized.size());
     }
 
     /**
      * Serializes the struct to a byte array
-     * @return
+     * @param writer
      */
-    std::vector<uint8_t> serialize() const
+    void serialize(serializer_t &writer) const
     {
-        serializer_t writer;
-
         writer.key(A);
 
         writer.key(A1);
@@ -101,15 +143,26 @@ typedef struct BulletproofPlus
 
         writer.key(d1);
 
-        writer.varint<uint64_t>(L.size());
+        writer.varint(L.size());
 
         for (const auto &val : L)
             writer.key(val);
 
-        writer.varint<uint64_t>(R.size());
+        writer.varint(R.size());
 
         for (const auto &val : R)
             writer.key(val);
+    }
+
+    /**
+     * Serializes the struct to a byte array
+     * @return
+     */
+    [[nodiscard]] std::vector<uint8_t> serialize() const
+    {
+        serializer_t writer;
+
+        serialize(writer);
 
         return writer.vector();
     }
@@ -118,11 +171,15 @@ typedef struct BulletproofPlus
      * Returns the serialized byte size
      * @return
      */
-    size_t size() const
+    [[nodiscard]] size_t size() const
     {
         return serialize().size();
     }
 
+    /**
+     * Writes the structure as JSON to the provided writer
+     * @param writer
+     */
     void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
     {
         writer.StartObject();
@@ -168,7 +225,7 @@ typedef struct BulletproofPlus
      * Returns the hex encoded serialized byte array
      * @return
      */
-    std::string to_string() const
+    [[nodiscard]] std::string to_string() const
     {
         const auto bytes = serialize();
 
@@ -180,86 +237,42 @@ typedef struct BulletproofPlus
     std::vector<crypto_point_t> L, R;
 
   private:
-    void deserialize(const std::vector<uint8_t> &input)
+    JSON_FROM_FUNC(from_json)
     {
-        deserializer_t reader(input);
+        JSON_OBJECT_OR_THROW();
 
-        A = reader.key<crypto_point_t>();
-
-        A1 = reader.key<crypto_point_t>();
-
-        B = reader.key<crypto_point_t>();
-
-        r1 = reader.key<crypto_scalar_t>();
-
-        s1 = reader.key<crypto_scalar_t>();
-
-        d1 = reader.key<crypto_scalar_t>();
-
-        {
-            const auto count = reader.varint<uint64_t>();
-
-            L.clear();
-
-            for (size_t i = 0; i < count; ++i)
-                L.push_back(reader.key<crypto_point_t>());
-        }
-
-        {
-            const auto count = reader.varint<uint64_t>();
-
-            R.clear();
-
-            for (size_t i = 0; i < count; ++i)
-                R.push_back(reader.key<crypto_point_t>());
-        }
-    }
-
-    void from_json(const JSONValue &j)
-    {
-        if (!j.IsObject())
-            throw std::invalid_argument("JSON value is of the wrong type");
-
-        if (!has_member(j, "A"))
-            throw std::invalid_argument("A not found in JSON object");
+        JSON_MEMBER_OR_THROW("A");
 
         A = get_json_string(j, "A");
 
-        if (!has_member(j, "A1"))
-            throw std::invalid_argument("A1 not found in JSON object");
+        JSON_MEMBER_OR_THROW("A1");
 
         A1 = get_json_string(j, "A1");
 
-        if (!has_member(j, "B"))
-            throw std::invalid_argument("B not found in JSON object");
+        JSON_MEMBER_OR_THROW("B");
 
         B = get_json_string(j, "B");
 
-        if (!has_member(j, "r1"))
-            throw std::invalid_argument("r1 not found in JSON object");
+        JSON_MEMBER_OR_THROW("r1");
 
         r1 = get_json_string(j, "r1");
 
-        if (!has_member(j, "s1"))
-            throw std::invalid_argument("s1 not found in JSON object");
+        JSON_MEMBER_OR_THROW("s1");
 
         s1 = get_json_string(j, "s1");
 
-        if (!has_member(j, "d1"))
-            throw std::invalid_argument("d1 not found in JSON object");
+        JSON_MEMBER_OR_THROW("d1");
 
         d1 = get_json_string(j, "d1");
 
-        if (!has_member(j, "L"))
-            throw std::invalid_argument("L not found in JSON object");
+        JSON_MEMBER_OR_THROW("L");
 
         L.clear();
 
         for (const auto &elem : get_json_array(j, "L"))
             L.emplace_back(get_json_string(elem));
 
-        if (!has_member(j, "R"))
-            throw std::invalid_argument("R not found in JSON object");
+        JSON_MEMBER_OR_THROW("R");
 
         R.clear();
 

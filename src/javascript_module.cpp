@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020-2021, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -81,6 +81,47 @@ static inline std::string
     END_RESULT()
 }
 
+template<typename T>
+static inline std::string prepare(bool success, const std::string &value1, const std::vector<T> &values2)
+{
+    INIT_RESULT()
+    {
+        writer.Bool(!success);
+
+        writer.String(value1);
+
+        writer.StartArray();
+        {
+            for (const auto &value : values2)
+                writer.String(value.to_string());
+        }
+        writer.EndArray();
+    }
+    END_RESULT()
+}
+
+template<typename T>
+static inline std::string
+    prepare(bool success, const std::string &value1, const std::vector<T> &values2, const std::string &value3)
+{
+    INIT_RESULT()
+    {
+        writer.Bool(!success);
+
+        writer.String(value1);
+
+        writer.StartArray();
+        {
+            for (const auto &value : values2)
+                writer.String(value.to_string());
+        }
+        writer.EndArray();
+
+        writer.String(value3);
+    }
+    END_RESULT()
+}
+
 static inline std::string prepare(bool success, const uint32_t value)
 {
     INIT_RESULT()
@@ -97,7 +138,6 @@ template<typename T> static inline std::string prepare(bool success, const std::
     INIT_RESULT()
     {
         writer.Bool(!success);
-
 
         writer.StartArray();
         {
@@ -131,83 +171,6 @@ static inline std::string prepare(bool success, const std::vector<T> &values1, c
                 writer.String(value.to_string());
         }
         writer.EndArray();
-    }
-    END_RESULT()
-}
-
-static inline std::string prepare(
-    bool success,
-    const crypto_bulletproof_t &proof,
-    const std::vector<crypto_pedersen_commitment_t> &commitments)
-{
-    INIT_RESULT()
-    {
-        writer.Bool(!success);
-
-        proof.toJSON(writer);
-
-        writer.StartArray();
-        {
-            for (const auto &value : commitments)
-                writer.String(value.to_string());
-        }
-        writer.EndArray();
-    }
-    END_RESULT()
-}
-
-static inline std::string prepare(
-    bool success,
-    const crypto_bulletproof_plus_t &proof,
-    const std::vector<crypto_pedersen_commitment_t> &commitments)
-{
-    INIT_RESULT()
-    {
-        writer.Bool(!success);
-
-        proof.toJSON(writer);
-
-        writer.StartArray();
-        {
-            for (const auto &value : commitments)
-                writer.String(value.to_string());
-        }
-        writer.EndArray();
-    }
-    END_RESULT()
-}
-
-static inline std::string prepare(bool success, const crypto_clsag_signature_t &signature)
-{
-    INIT_RESULT()
-    {
-        writer.Bool(!success);
-
-        signature.toJSON(writer);
-    }
-    END_RESULT()
-}
-
-static inline std::string prepare(
-    bool success,
-    const crypto_clsag_signature_t &signature,
-    const std::vector<crypto_scalar_t> &h,
-    const std::string mu_P)
-{
-    INIT_RESULT()
-    {
-        writer.Bool(!success);
-
-        signature.toJSON(writer);
-
-        writer.StartArray();
-        {
-            for (const auto &value : h)
-                writer.String(value.to_string());
-        }
-        writer.EndArray();
-
-        writer.String(mu_P);
     }
     END_RESULT()
 }
@@ -350,61 +313,6 @@ static inline std::vector<uint64_t> get_uint64_t_vector(const rapidjson::Documen
     return results;
 }
 
-template<typename T> static inline T get_object(const rapidjson::Document &document, uint8_t index)
-{
-    T result;
-
-    const auto key = std::to_string(index);
-
-    if (has_member(document, key))
-    {
-        const auto &val = get_json_value(document, key);
-
-        if (val.IsObject())
-            result = val;
-    }
-
-    return result;
-}
-
-template<typename T> static inline std::vector<T> get_object_vector(const rapidjson::Value &value)
-{
-    std::vector<T> results;
-
-    try
-    {
-        if (value.IsArray())
-            for (const auto &element : get_json_array(value))
-                if (element.IsObject())
-                    results.push_back(element);
-    }
-    catch (...)
-    {
-        results.clear();
-    }
-
-    return results;
-}
-
-
-template<typename T> static inline std::vector<T> get_object_vector(const rapidjson::Document &document, uint8_t index)
-{
-    std::vector<T> results;
-
-
-    const auto key = std::to_string(index);
-
-    if (has_member(document, key))
-    {
-        const auto &val = get_json_value(document, key);
-
-        results = get_object_vector<T>(val);
-    }
-
-
-    return results;
-}
-
 template<typename T>
 static inline std::vector<std::vector<T>> get_vector_vector(const rapidjson::Document &document, uint8_t index)
 {
@@ -459,7 +367,13 @@ EMS_METHOD(bulletproofs_prove)
         {
             const auto [proof, commitments] = Crypto::RangeProofs::Bulletproofs::prove(amounts, blinding_factors, N);
 
-            return prepare(true, proof, commitments);
+            JSON_INIT();
+
+            proof.toJSON(writer);
+
+            JSON_DUMP(proof_json);
+
+            return prepare(true, proof_json, commitments);
         }
 
         return error(std::invalid_argument("invalid method argument"));
@@ -476,7 +390,7 @@ EMS_METHOD(bulletproofs_verify)
     {
         PARSE_JSON();
 
-        const auto proofs = get_object_vector<crypto_bulletproof_t>(info, 0);
+        const auto proofs_array = get<std::string>(info, 0);
 
         const auto commitments = get_vector_vector<crypto_pedersen_commitment_t>(info, 1);
 
@@ -485,8 +399,19 @@ EMS_METHOD(bulletproofs_verify)
         if (N == 0)
             N = 64;
 
-        if (!proofs.empty() && !commitments.empty())
+        if (!proofs_array.empty() && !commitments.empty())
         {
+            std::vector<crypto_bulletproof_t> proofs;
+
+            JSON_PARSE(proofs_array);
+
+            for (const auto &elem : get_json_array(body))
+            {
+                const auto proof = crypto_bulletproof_t(elem);
+
+                proofs.push_back(proof);
+            }
+
             const auto success = Crypto::RangeProofs::Bulletproofs::verify(proofs, commitments, N);
 
             return prepare(!success);
@@ -524,7 +449,13 @@ EMS_METHOD(bulletproofsplus_prove)
             const auto [proof, commitments] =
                 Crypto::RangeProofs::BulletproofsPlus::prove(amounts, blinding_factors, N);
 
-            return prepare(true, proof, commitments);
+            JSON_INIT();
+
+            proof.toJSON(writer);
+
+            JSON_DUMP(proof_json);
+
+            return prepare(true, proof_json, commitments);
         }
 
         return error(std::invalid_argument("invalid method argument"));
@@ -541,7 +472,7 @@ EMS_METHOD(bulletproofsplus_verify)
     {
         PARSE_JSON();
 
-        const auto proofs = get_object_vector<crypto_bulletproof_plus_t>(info, 0);
+        const auto proofs_array = get<std::string>(info, 0);
 
         const auto commitments = get_vector_vector<crypto_pedersen_commitment_t>(info, 1);
 
@@ -550,8 +481,19 @@ EMS_METHOD(bulletproofsplus_verify)
         if (N == 0)
             N = 64;
 
-        if (!proofs.empty() && !commitments.empty())
+        if (!proofs_array.empty() && !commitments.empty())
         {
+            std::vector<crypto_bulletproof_plus_t> proofs;
+
+            JSON_PARSE(proofs_array);
+
+            for (const auto &elem : get_json_array(body))
+            {
+                const auto proof = crypto_bulletproof_plus_t(elem);
+
+                proofs.push_back(proof);
+            }
+
             const auto success = Crypto::RangeProofs::BulletproofsPlus::verify(proofs, commitments, N);
 
             return prepare(!success);
@@ -568,6 +510,24 @@ EMS_METHOD(bulletproofsplus_verify)
 /**
  * Mapped methods from crypto_common.cpp
  */
+
+EMS_METHOD(calculate_base2_exponent)
+{
+    try
+    {
+        PARSE_JSON();
+
+        const auto value = get<uint32_t>(info, 0);
+
+        const auto [success, exponent] = Crypto::calculate_base2_exponent(value);
+
+        return prepare(success, exponent);
+    }
+    catch (const std::exception e)
+    {
+        return error(e);
+    }
+}
 
 EMS_METHOD(check_point)
 {
@@ -730,6 +690,29 @@ EMS_METHOD(generate_key_image)
         if (!public_key.empty() && !secret_key.empty())
         {
             const auto key = Crypto::generate_key_image(public_key, secret_key, partial_key_images);
+
+            return prepare(true, key.to_string());
+        }
+
+        return error(std::invalid_argument("invalid method argument"));
+    }
+    catch (const std::exception &e)
+    {
+        return error(e);
+    }
+}
+
+EMS_METHOD(generate_key_image_v2)
+{
+    try
+    {
+        PARSE_JSON();
+
+        const auto secret_key = get<std::string>(info, 0);
+
+        if (!secret_key.empty())
+        {
+            const auto key = Crypto::generate_key_image_v2(secret_key);
 
             return prepare(true, key.to_string());
         }
@@ -1428,6 +1411,114 @@ EMS_METHOD(toggle_masked_amount)
 }
 
 /**
+ * Mapped methods from ring_signature_arcturus.cpp
+ */
+EMS_METHOD(arcturus_prove)
+{
+    try
+    {
+        PARSE_JSON();
+
+        const auto message_digest = get<std::string>(info, 0);
+
+        const auto public_keys = get_vector<crypto_public_key_t>(info, 1);
+
+        const auto key_images = get_vector<crypto_key_image_t>(info, 2);
+
+        const auto input_commitments = get_vector<crypto_pedersen_commitment_t>(info, 3);
+
+        const auto output_commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
+
+        const auto real_output_indexes = get_uint64_t_vector(info, 5);
+
+        const auto secret_ephemerals = get_vector<crypto_secret_key_t>(info, 6);
+
+        const auto input_blinding_factors = get_vector<crypto_blinding_factor_t>(info, 7);
+
+        const auto output_blinding_factors = get_vector<crypto_blinding_factor_t>(info, 8);
+
+        const auto input_amounts = get_uint64_t_vector(info, 9);
+
+        const auto output_amounts = get_uint64_t_vector(info, 10);
+
+        if (!message_digest.empty() && !public_keys.empty() && !key_images.empty() && !input_commitments.empty()
+            && !output_commitments.empty() && !real_output_indexes.empty() && !secret_ephemerals.empty()
+            && !input_blinding_factors.empty() && !output_blinding_factors.empty() && !input_amounts.empty()
+            && !output_amounts.empty())
+        {
+            const auto [success, signature] = Crypto::RingSignature::Arcturus::prove(
+                message_digest,
+                public_keys,
+                key_images,
+                input_commitments,
+                output_commitments,
+                real_output_indexes,
+                secret_ephemerals,
+                input_blinding_factors,
+                output_blinding_factors,
+                input_amounts,
+                output_amounts);
+
+            if (success)
+            {
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(sig_json);
+
+                return prepare(success, sig_json);
+            }
+        }
+
+        return error(std::invalid_argument("invalid method argument"));
+    }
+    catch (const std::exception &e)
+    {
+        return error(e);
+    }
+}
+
+EMS_METHOD(arcturus_verify)
+{
+    try
+    {
+        PARSE_JSON();
+
+        const auto message_digest = get<std::string>(info, 0);
+
+        const auto public_keys = get_vector<crypto_public_key_t>(info, 1);
+
+        const auto key_images = get_vector<crypto_key_image_t>(info, 2);
+
+        const auto input_commitments = get_vector<crypto_pedersen_commitment_t>(info, 3);
+
+        const auto output_commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
+
+        const auto signature_obj = get<std::string>(info, 5);
+
+        if (!message_digest.empty() && !public_keys.empty() && !key_images.empty() && !input_commitments.empty()
+            && !output_commitments.empty() && !signature_obj.empty())
+        {
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_arcturus_signature_t(body);
+
+            const auto success = Crypto::RingSignature::Arcturus::verify(
+                message_digest, public_keys, key_images, input_commitments, output_commitments, signature);
+
+            return prepare(!success);
+        }
+
+        return error(std::invalid_argument("invalid method argument"));
+    }
+    catch (const std::exception &e)
+    {
+        return error(e);
+    }
+}
+
+/**
  * Mapped methods from ring_signature_borromean.cpp
  */
 
@@ -1596,14 +1687,18 @@ EMS_METHOD(clsag_check_ring_signature)
 
         const auto public_keys = get_vector<crypto_public_key_t>(info, 2);
 
-        const auto signature = get_object<crypto_clsag_signature_t>(info, 3);
+        const auto signature_obj = get<std::string>(info, 3);
 
         const auto commitments = get_vector<crypto_pedersen_commitment_t>(info, 4);
 
         const auto pseudo_commitment = get_crypto_t<crypto_pedersen_commitment_t>(info, 5);
 
-        if (!message_digest.empty() && !key_image.empty() && !public_keys.empty())
+        if (!message_digest.empty() && !key_image.empty() && !public_keys.empty() && !signature_obj.empty())
         {
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_clsag_signature_t(body);
+
             const auto success = Crypto::RingSignature::CLSAG::check_ring_signature(
                 message_digest, key_image, public_keys, signature, commitments, pseudo_commitment);
 
@@ -1628,7 +1723,7 @@ EMS_METHOD(clsag_complete_ring_signature)
 
         const auto real_output_index = get<uint32_t>(info, 1);
 
-        const auto signature = get_object<crypto_clsag_signature_t>(info, 2);
+        const auto signature_obj = get<std::string>(info, 2);
 
         const auto h = get_vector<crypto_scalar_t>(info, 3);
 
@@ -1636,13 +1731,25 @@ EMS_METHOD(clsag_complete_ring_signature)
 
         const auto partial_signing_scalars = get_vector<crypto_scalar_t>(info, 5);
 
-        if (!signing_scalar.empty() && !h.empty() && !mu_P.empty())
+        if (!signing_scalar.empty() && !h.empty() && !mu_P.empty() && !signature_obj.empty())
         {
+            JSON_PARSE(signature_obj);
+
+            const auto signature = crypto_clsag_signature_t(body);
+
             const auto [success, sig] = Crypto::RingSignature::CLSAG::complete_ring_signature(
                 signing_scalar, real_output_index, signature, h, mu_P, partial_signing_scalars);
 
             if (success)
-                return prepare(success, sig);
+            {
+                JSON_INIT();
+
+                sig.toJSON(writer);
+
+                JSON_DUMP(sig_json);
+
+                return prepare(success, sig_json);
+            }
         }
 
         return error(std::invalid_argument("invalid method argument"));
@@ -1711,7 +1818,15 @@ EMS_METHOD(clsag_generate_ring_signature)
                 pseudo_commitment);
 
             if (success)
-                return prepare(success, signature);
+            {
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(sig_json);
+
+                return prepare(success, sig_json);
+            }
         }
 
         return error(std::invalid_argument("invalid method argument"));
@@ -1757,7 +1872,15 @@ EMS_METHOD(clsag_prepare_ring_signature)
                 pseudo_commitment);
 
             if (success)
-                return prepare(success, signature, h, mu_P.to_string());
+            {
+                JSON_INIT();
+
+                signature.toJSON(writer);
+
+                JSON_DUMP(sig_json);
+
+                return prepare(success, sig_json, h, mu_P.to_string());
+            }
         }
 
         return error(std::invalid_argument("invalid method argument"));
@@ -1920,6 +2043,8 @@ EMSCRIPTEN_BINDINGS(InitModule)
 
     // Mapped methods from crypto_common.cpp
     {
+        EMS_EXPORT(calculate_base2_exponent);
+
         EMS_EXPORT(check_point);
 
         EMS_EXPORT(check_scalar);
@@ -1933,6 +2058,8 @@ EMSCRIPTEN_BINDINGS(InitModule)
         EMS_EXPORT(generate_key_derivation);
 
         EMS_EXPORT(generate_key_image);
+
+        EMS_EXPORT(generate_key_image_v2);
 
         EMS_EXPORT(generate_keys);
 
@@ -2000,6 +2127,13 @@ EMSCRIPTEN_BINDINGS(InitModule)
         EMS_EXPORT(generate_pseudo_commitments);
 
         EMS_EXPORT(toggle_masked_amount);
+    }
+
+    // Mapped method from ring_signature_arcturus.cpp
+    {
+        EMS_EXPORT(arcturus_prove);
+
+        EMS_EXPORT(arcturus_verify);
     }
 
     // Mapped methods from ring_signature_borromean.cpp

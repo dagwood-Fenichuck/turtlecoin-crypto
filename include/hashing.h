@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -27,6 +27,7 @@
 #ifndef CRYPTO_HASHING_H
 #define CRYPTO_HASHING_H
 
+#include "../external/sha3/include/sha3.h"
 #include "serializer.h"
 #include "string_tools.h"
 
@@ -35,7 +36,6 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <sha3/include/sha3.h>
 #include <stdexcept>
 #include <string>
 
@@ -54,6 +54,11 @@ typedef struct Hash
     Hash(const uint8_t input[32])
     {
         std::copy(input, input + sizeof(bytes), std::begin(bytes));
+    }
+
+    Hash(const std::vector<uint8_t> &input)
+    {
+        std::copy(input.begin(), input.end(), std::begin(bytes));
     }
 
     Hash(const std::string &s)
@@ -138,13 +143,22 @@ typedef struct Hash
 
     /**
      * Serializes the struct to a byte array
+     * @param writer
+     */
+    void serialize(serializer_t &writer) const
+    {
+        writer.bytes(&bytes, sizeof(bytes));
+    }
+
+    /**
+     * Serializes the struct to a byte array
      * @return
      */
-    std::vector<uint8_t> serialize() const
+    [[nodiscard]] std::vector<uint8_t> serialize() const
     {
         serializer_t writer;
 
-        writer.bytes(&bytes, sizeof(bytes));
+        serialize(writer);
 
         return writer.vector();
     }

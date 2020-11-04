@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020-2021, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -346,7 +346,7 @@ int main()
 
     // Borromean
     {
-        std::cout << std::endl << std::endl << "Borromean Ring Signatures" << std::endl;
+        std::cout << std::endl << std::endl << "Borromean Ring Signature" << std::endl;
 
         auto public_keys = Crypto::random_points(RING_SIZE);
 
@@ -381,7 +381,7 @@ int main()
 
     // CLSAG
     {
-        std::cout << std::endl << std::endl << "CLSAG Ring Signatures" << std::endl;
+        std::cout << std::endl << std::endl << "CLSAG Ring Signature" << std::endl;
 
         auto public_keys = Crypto::random_points(RING_SIZE);
 
@@ -417,7 +417,7 @@ int main()
 
     // CLSAG w/ Commitments
     {
-        std::cout << std::endl << std::endl << "CLSAG Ring Signatures w/ Commitments" << std::endl;
+        std::cout << std::endl << std::endl << "CLSAG Ring Signature w/ Commitments" << std::endl;
 
         auto public_keys = Crypto::random_points(RING_SIZE);
 
@@ -467,6 +467,114 @@ int main()
         }
 
         std::cout << "CLSAG::check_ring_signature: Passed!" << std::endl;
+    }
+
+    // Arcturus
+    {
+        std::cout << std::endl << std::endl << "Arcturus Ring Signature" << std::endl;
+
+        const auto [m_found, m] = Crypto::calculate_base2_exponent(RING_SIZE); // 2 ^ m == ring size
+
+        if (!m_found)
+        {
+            std::cout << "Invalid ring size" << std::endl;
+
+            return 1;
+        }
+
+        const auto spends = 1, outs = 2;
+
+        auto public_keys = Crypto::random_points(RING_SIZE);
+
+        auto input_commitments = Crypto::random_points(RING_SIZE);
+
+        std::vector<uint64_t> real_output_indexes(spends);
+
+        for (size_t i = 0; i < real_output_indexes.size(); ++i)
+            real_output_indexes[i] = i;
+
+        auto secret_ephemerals = Crypto::random_scalars(spends);
+
+        auto input_blinding_factors = Crypto::random_scalars(spends);
+
+        auto output_blinding_factors = Crypto::random_scalars(outs);
+
+        auto input_amounts = std::vector<uint64_t>(spends, 100000);
+
+        auto output_amounts = std::vector<uint64_t>(outs, 5555);
+
+        output_amounts[0] = 0;
+
+        for (auto &i : input_amounts)
+            output_amounts[0] += i;
+
+        for (size_t i = 1; i < output_amounts.size(); ++i)
+            output_amounts[0] -= output_amounts[i];
+
+        std::vector<crypto_point_t> output_commitments;
+
+        for (size_t i = 0; i < outs; ++i)
+            output_commitments.push_back(
+                Crypto::RingCT::generate_pedersen_commitment(output_blinding_factors[i], output_amounts[i]));
+
+        std::vector<crypto_key_image_t> key_images;
+
+        for (size_t i = 0; i < spends; ++i)
+        {
+            key_images.push_back(Crypto::generate_key_image_v2(secret_ephemerals[i]));
+
+            public_keys[real_output_indexes[i]] = secret_ephemerals[i] * Crypto::G;
+
+            input_commitments[real_output_indexes[i]] =
+                Crypto::RingCT::generate_pedersen_commitment(input_blinding_factors[i], input_amounts[i]);
+        }
+
+        try
+        {
+            auto [success, signature] = Crypto::RingSignature::Arcturus::prove(
+                SHA3_HASH,
+                public_keys,
+                key_images,
+                input_commitments,
+                output_commitments,
+                real_output_indexes,
+                secret_ephemerals,
+                input_blinding_factors,
+                output_blinding_factors,
+                input_amounts,
+                output_amounts);
+
+            if (!success)
+            {
+                std::cout << "Crypto::RingSignature::Arcturus::prove: Failed!" << std::endl;
+
+                return 1;
+            }
+
+            std::cout << "Crypto::RingSignature::Arcturus::prove: Passed!" << std::endl;
+
+            std::cout << signature << std::endl;
+
+            std::cout << "Encoded Size: " << signature.size() << std::endl
+                      << signature.to_string() << std::endl
+                      << std::endl;
+
+            if (!Crypto::RingSignature::Arcturus::verify(
+                    SHA3_HASH, public_keys, key_images, input_commitments, output_commitments, signature))
+            {
+                std::cout << "Crypto::RingSignature::Arcturus::verify: Failed!" << std::endl;
+
+                return 1;
+            }
+
+            std::cout << "Crypto::RingSignature::Arcturus::verify: Passed!" << std::endl;
+        }
+        catch (...)
+        {
+            std::cout << "Crypto::RingSignature::Arcturus::prove: Failed!" << std::endl;
+
+            return 1;
+        }
     }
 
     // RingCT Basics
@@ -674,7 +782,8 @@ int main()
             [&point = point, &scalar = scalar]() { Crypto::generate_key_image(point, scalar); },
             "Crypto::generate_key_image");
 
-        benchmark([&key_image]() { key_image.check_subgroup(); }, "crypto_point_t::check_subgroup()");
+        benchmark(
+            [&key_image]() { const auto valid = key_image.check_subgroup(); }, "crypto_point_t::check_subgroup()");
 
         // signing
         {
@@ -800,6 +909,107 @@ int main()
                 },
                 "Crypto::RingSignature::CLSAG::check_ring_signature[commitments]",
                 100);
+        }
+
+        // Arcturus
+        {
+            const auto [m_found, m] = Crypto::calculate_base2_exponent(RING_SIZE); // 2 ^ m == ring size
+
+            if (!m_found)
+            {
+                std::cout << "Invalid ring size" << std::endl;
+
+                return 1;
+            }
+
+            const auto spends = 1, outs = 2;
+
+            auto public_keys = Crypto::random_points(RING_SIZE);
+
+            auto input_commitments = Crypto::random_points(RING_SIZE);
+
+            std::vector<uint64_t> real_output_indexes(spends);
+
+            for (size_t i = 0; i < real_output_indexes.size(); ++i)
+                real_output_indexes[i] = i;
+
+            auto secret_ephemerals = Crypto::random_scalars(spends);
+
+            auto input_blinding_factors = Crypto::random_scalars(spends);
+
+            auto output_blinding_factors = Crypto::random_scalars(outs);
+
+            auto input_amounts = std::vector<uint64_t>(spends, 100000);
+
+            auto output_amounts = std::vector<uint64_t>(outs, 5555);
+
+            output_amounts[0] = 0;
+
+            for (auto &i : input_amounts)
+                output_amounts[0] += i;
+
+            for (size_t i = 1; i < output_amounts.size(); ++i)
+                output_amounts[0] -= output_amounts[i];
+
+            std::vector<crypto_point_t> output_commitments;
+
+            for (size_t i = 0; i < outs; ++i)
+                output_commitments.push_back(
+                    Crypto::RingCT::generate_pedersen_commitment(output_blinding_factors[i], output_amounts[i]));
+
+            std::vector<crypto_key_image_t> key_images;
+
+            for (size_t i = 0; i < spends; ++i)
+            {
+                key_images.push_back(Crypto::generate_key_image_v2(secret_ephemerals[i]));
+
+                public_keys[real_output_indexes[i]] = secret_ephemerals[i] * Crypto::G;
+
+                input_commitments[real_output_indexes[i]] =
+                    Crypto::RingCT::generate_pedersen_commitment(input_blinding_factors[i], input_amounts[i]);
+            }
+
+            crypto_arcturus_signature_t signature;
+
+            std::cout << std::endl;
+
+            benchmark(
+                [&public_keys,
+                 &key_images,
+                 &input_commitments,
+                 &output_commitments,
+                 &real_output_indexes,
+                 &secret_ephemerals,
+                 &input_blinding_factors,
+                 &output_blinding_factors,
+                 &input_amounts,
+                 &output_amounts,
+                 &signature]() {
+                    const auto [success, sig] = Crypto::RingSignature::Arcturus::prove(
+                        SHA3_HASH,
+                        public_keys,
+                        key_images,
+                        input_commitments,
+                        output_commitments,
+                        real_output_indexes,
+                        secret_ephemerals,
+                        input_blinding_factors,
+                        output_blinding_factors,
+                        input_amounts,
+                        output_amounts);
+
+                    signature = sig;
+                },
+                "Crypto::RingSignature::Arcturus::prove",
+                10);
+
+            benchmark(
+                [&public_keys, &key_images, &input_commitments, &output_commitments, &signature]() {
+                    Crypto::RingSignature::Arcturus::verify(
+                        SHA3_HASH, public_keys, key_images, input_commitments, output_commitments, signature);
+                },
+                "Crypto::RingSignature::Arcturus::verify",
+                10);
         }
 
         // RingCT

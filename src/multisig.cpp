@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -32,12 +32,7 @@ namespace Crypto::Multisig
         const crypto_public_key_t &their_public_key,
         const crypto_secret_key_t &our_secret_key)
     {
-        // We perform a few quick sanity checks here as a safety for the parties
-        if (!their_public_key.check())
-            throw std::runtime_error("public key is not a point on the curve");
-
-        if (!our_secret_key.check())
-            throw std::runtime_error("secret key is not a scalar");
+        SCALAR_OR_THROW(our_secret_key);
 
         // Multiply the secret key by their public key point
         const auto point = (our_secret_key * their_public_key).mul8();
@@ -50,6 +45,8 @@ namespace Crypto::Multisig
         const std::vector<crypto_public_key_t> &their_public_keys,
         const crypto_secret_key_t &our_secret_key)
     {
+        SCALAR_OR_THROW(our_secret_key);
+
         const auto keys = crypto_point_vector_t(their_public_keys).dedupe_sort();
 
         std::vector<crypto_secret_key_t> results(keys.size());
@@ -62,11 +59,6 @@ namespace Crypto::Multisig
 
     crypto_public_key_t generate_shared_public_key(const std::vector<crypto_public_key_t> &public_keys)
     {
-        // We perform a few quick sanity checks here as a safety for the parties
-        for (const auto &key : public_keys)
-            if (!key.check())
-                throw std::runtime_error("non-point found in vector");
-
         crypto_point_vector_t keys(public_keys);
 
         /**
@@ -79,10 +71,8 @@ namespace Crypto::Multisig
 
     crypto_secret_key_t generate_shared_secret_key(const std::vector<crypto_secret_key_t> &secret_keys)
     {
-        // We perform a few quick sanity checks here as a safety for the parties
         for (const auto &key : secret_keys)
-            if (!key.check())
-                throw std::runtime_error("non-scalar found in vector");
+            SCALAR_OR_THROW(key);
 
         crypto_scalar_vector_t keys(secret_keys);
 

@@ -84,7 +84,6 @@ endif()
 add_subdirectory(external)
 
 include_directories(include)
-include_directories(external)
 
 set(SOURCES
     src/bulletproofs.cpp
@@ -93,6 +92,7 @@ set(SOURCES
     src/hashing.cpp
     src/multisig.cpp
     src/ringct.cpp
+    src/ring_signature_arcturus.cpp
     src/ring_signature_borromean.cpp
     src/ring_signature_clsag.cpp
     src/signature.cpp

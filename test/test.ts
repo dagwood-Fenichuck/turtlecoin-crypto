@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import { Crypto, crypto_bulletproof_plus_t, crypto_bulletproof_t } from '../typescript';
+import { Crypto, crypto_arcturus_signature_t, crypto_bulletproof_plus_t, crypto_bulletproof_t } from '../typescript';
 import { describe, it, before } from 'mocha';
 import * as assert from 'assert';
 import { sha3_256 } from 'js-sha3';
@@ -96,6 +96,12 @@ describe('Cryptographic Tests', async () => {
     });
 
     describe('Fundamentals', async () => {
+        it('Calculate Base2 Exponent', async () => {
+            for (let i = 0; i < 16; ++i) {
+                assert(await crypto.calculate_base2_exponent(1 << i) === i);
+            }
+        });
+
         it('Check Scalar', async () => {
             assert(await crypto.check_scalar('bf356a444a9db6e5c396a36eb7207e2647c5f89db88b1e2218844bb54661910d'));
             assert(!await crypto.check_point('bf356a444a9db6e5c396a36eb7207e2647c5f89db88b1e2218844bb54661910d'));
@@ -310,6 +316,111 @@ describe('Cryptographic Tests', async () => {
 
                 assert(await crypto.clsag_check_ring_signature(message_digest, key_image, public_keys, signature,
                     public_commitments, psuedo_commitment));
+            });
+        });
+
+        describe('Arcturus', async () => {
+            const key_images: string[] = [];
+            const output_commitments: string[] = [];
+            const input_amounts: number[] = [];
+            const output_amounts: number[] = [];
+
+            let public_keys: string[] = [];
+            let input_commitments: string[] = [];
+            let real_output_indexes: number[] = [];
+            let secret_ephemerals: string[] = [];
+            let input_blinding_factors: string[] = [];
+            let output_blinding_factors: string[] = [];
+            let message_digest: string = '';
+            let signature: crypto_arcturus_signature_t;
+
+            const ring_size = 4; const spends = 1; const outs = 2;
+
+            before(async () => {
+                message_digest = await crypto.random_scalar();
+
+                public_keys = await crypto.random_points(ring_size);
+
+                input_commitments = await crypto.random_points(ring_size);
+
+                real_output_indexes = [ring_size / 2];
+
+                secret_ephemerals = await crypto.random_scalars(spends);
+
+                input_blinding_factors = await crypto.random_scalars(spends);
+
+                output_blinding_factors = await crypto.random_scalars(outs);
+
+                for (let i = 0; i < spends; ++i) {
+                    input_amounts.push(100000);
+                }
+
+                for (let i = 0; i < outs; ++i) {
+                    output_amounts.push(5555);
+                }
+
+                output_amounts[0] = 0;
+
+                for (const i of input_amounts) {
+                    output_amounts[0] += i;
+                }
+
+                for (let i = 1; i < output_amounts.length; ++i) {
+                    output_amounts[0] -= output_amounts[i];
+                }
+
+                for (let i = 0; i < outs; ++i) {
+                    output_commitments.push(
+                        await crypto.generate_pedersen_commitment(output_blinding_factors[i], output_amounts[i]));
+                }
+
+                for (let i = 0; i < spends; ++i) {
+                    key_images.push(await crypto.generate_key_image_v2(secret_ephemerals[i]));
+
+                    public_keys[real_output_indexes[i]] = await crypto.secret_key_to_public_key(secret_ephemerals[i]);
+
+                    input_commitments[real_output_indexes[i]] =
+                        await crypto.generate_pedersen_commitment(input_blinding_factors[i], input_amounts[i]);
+                }
+            });
+
+            it('Prove & Verify', async () => {
+                signature = await crypto.arcturus_prove(
+                    message_digest,
+                    public_keys,
+                    key_images,
+                    input_commitments,
+                    output_commitments,
+                    real_output_indexes,
+                    secret_ephemerals,
+                    input_blinding_factors,
+                    output_blinding_factors,
+                    input_amounts,
+                    output_amounts);
+
+                const verified = await crypto.arcturus_verify(
+                    message_digest,
+                    public_keys,
+                    key_images,
+                    input_commitments,
+                    output_commitments,
+                    signature);
+
+                assert(verified);
+            });
+
+            it('Fail Verification', async () => {
+                signature.A = await crypto.random_point();
+
+                const verified = await crypto.arcturus_verify(
+                    message_digest,
+                    public_keys,
+                    key_images,
+                    input_commitments,
+                    output_commitments,
+                    signature);
+
+                assert(!verified);
             });
         });
     });

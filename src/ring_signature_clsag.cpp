@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from Python code by Sarang Noether found at
+// Inspired by the work of Sarang Noether found at
 // https://github.com/SarangNoether/skunkworks/tree/clsag
 
 #include "ring_signature_clsag.h"
@@ -65,6 +65,9 @@ namespace Crypto::RingSignature::CLSAG
             return false;
 
         if (use_commitments && !signature.commitment_image.check_subgroup())
+            return false;
+
+        if (!signature.challenge.check())
             return false;
 
         const auto h0 = signature.challenge;
@@ -134,6 +137,9 @@ namespace Crypto::RingSignature::CLSAG
 
             const auto idx = i % ring_size;
 
+            if (!signature.scalars[idx].check())
+                return false;
+
             // r = (temp_h * mu_P) mod l
             const auto r = temp_h * mu_P;
 
@@ -181,6 +187,10 @@ namespace Crypto::RingSignature::CLSAG
     crypto_scalar_t
         generate_partial_signing_scalar(const crypto_scalar_t &mu_P, const crypto_secret_key_t &spend_secret_key)
     {
+        SCALAR_OR_THROW(mu_P);
+
+        SCALAR_OR_THROW(spend_secret_key);
+
         return mu_P * spend_secret_key;
     }
 
@@ -196,6 +206,25 @@ namespace Crypto::RingSignature::CLSAG
             || h.size() != signature.scalars.size())
             return {false, {}};
 
+        try
+        {
+            SCALAR_OR_THROW(signing_scalar);
+
+            for (const auto &scalar : signature.scalars)
+                SCALAR_OR_THROW(scalar);
+
+            SCALAR_OR_THROW(signature.challenge);
+
+            for (const auto &h_val : h)
+                SCALAR_OR_THROW(h_val);
+
+            SCALAR_OR_THROW(mu_P);
+        }
+        catch (...)
+        {
+            return {false, {}};
+        }
+
         std::vector<crypto_scalar_t> finalized_signature(signature.scalars);
 
         /**
@@ -208,6 +237,16 @@ namespace Crypto::RingSignature::CLSAG
         }
         else /** Otherwise, we're using partial signing scalars (multisig) */
         {
+            try
+            {
+                for (const auto &partial_signing_scalar : partial_signing_scalars)
+                    SCALAR_OR_THROW(partial_signing_scalar);
+            }
+            catch (...)
+            {
+                return {false, {}};
+            }
+
             const auto partial_scalar = generate_partial_signing_scalar(mu_P, signing_scalar);
 
             // create a copy of our partial signing scalars for computation and handling
@@ -239,6 +278,15 @@ namespace Crypto::RingSignature::CLSAG
         const crypto_blinding_factor_t &pseudo_blinding_factor,
         const crypto_pedersen_commitment_t &pseudo_commitment)
     {
+        try
+        {
+            SCALAR_OR_THROW(secret_ephemeral);
+        }
+        catch (...)
+        {
+            return {false, {}};
+        }
+
         const auto use_commitments =
             (input_blinding_factor != Crypto::ZERO && public_commitments.size() == public_keys.size()
              && pseudo_blinding_factor != Crypto::ZERO && pseudo_commitment != Crypto::Z);
@@ -255,6 +303,17 @@ namespace Crypto::RingSignature::CLSAG
         {
             if (use_commitments)
             {
+                try
+                {
+                    SCALAR_OR_THROW(input_blinding_factor);
+
+                    SCALAR_OR_THROW(pseudo_blinding_factor);
+                }
+                catch (...)
+                {
+                    return {false, {}};
+                }
+
                 const auto public_commitment = (input_blinding_factor - pseudo_blinding_factor) * Crypto::G;
 
                 const auto derived_commitment = public_commitments[i] - pseudo_commitment;
@@ -334,6 +393,17 @@ namespace Crypto::RingSignature::CLSAG
 
         if (use_commitments)
         {
+            try
+            {
+                SCALAR_OR_THROW(input_blinding_factor);
+
+                SCALAR_OR_THROW(pseudo_blinding_factor);
+            }
+            catch (...)
+            {
+                return {false, {}, {}, {0}};
+            }
+
             /**
              * TLDR: If we know the difference between the input blinding scalar and the
              * pseudo output blinding scalar then we can use that difference as the secret

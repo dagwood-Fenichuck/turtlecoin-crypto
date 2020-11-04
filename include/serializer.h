@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -111,7 +111,7 @@ namespace SerializerTools
      * @return
      */
     template<typename T>
-    static inline std::tuple<T, unsigned int> decode_varint(const std::vector<uint8_t> &packed, const size_t offset = 0)
+    static inline std::tuple<T, size_t> decode_varint(const std::vector<uint8_t> &packed, const size_t offset = 0)
     {
         if (offset > packed.size())
             throw std::range_error("offset exceeds sizes of vector");
@@ -204,7 +204,7 @@ typedef struct Serializer
      * Returns a pointer to the underlying structure data
      * @return
      */
-    const uint8_t *data() const
+    [[nodiscard]] const uint8_t *data() const
     {
         return buffer.data();
     }
@@ -228,7 +228,7 @@ typedef struct Serializer
     template<typename T> void key(const T &value)
     {
         for (size_t i = 0; i < value.size(); ++i)
-            buffer.push_back(value[i]);
+            buffer.push_back(value[int(i)]);
     }
 
     /**
@@ -244,7 +244,7 @@ typedef struct Serializer
      * size of the structure in bytes
      * @return
      */
-    size_t const size() const
+    [[nodiscard]] size_t const size() const
     {
         return buffer.size();
     }
@@ -253,7 +253,7 @@ typedef struct Serializer
      * Returns the hex encoding of the underlying byte vector
      * @return
      */
-    std::string to_string() const
+    [[nodiscard]] std::string to_string() const
     {
         return Crypto::StringTools::to_hex(buffer.data(), buffer.size());
     }
@@ -316,7 +316,7 @@ typedef struct Serializer
      * Returns a copy of the underlying vector
      * @return
      */
-    std::vector<uint8_t> vector() const
+    [[nodiscard]] std::vector<uint8_t> vector() const
     {
         return buffer;
     }
@@ -386,7 +386,7 @@ typedef struct DeSerializer
      * Returns a pointer to the underlying structure data
      * @return
      */
-    const uint8_t *data() const
+    [[nodiscard]] const uint8_t *data() const
     {
         return buffer.data();
     }
@@ -433,7 +433,7 @@ typedef struct DeSerializer
      * size of the structure in bytes
      * @return
      */
-    size_t const size() const
+    [[nodiscard]] size_t size() const
     {
         return buffer.size();
     }
@@ -451,7 +451,7 @@ typedef struct DeSerializer
      * Returns the hex encoding of the underlying byte vector
      * @return
      */
-    std::string to_string() const
+    [[nodiscard]] std::string to_string() const
     {
         return Crypto::StringTools::to_hex(buffer.data(), buffer.size());
     }
@@ -538,7 +538,7 @@ typedef struct DeSerializer
      * Returns the remaining number of bytes that have not been read from the byte vector
      * @return
      */
-    size_t unread_bytes() const
+    [[nodiscard]] size_t unread_bytes() const
     {
         const auto unread = buffer.size() - offset;
 
@@ -549,7 +549,7 @@ typedef struct DeSerializer
      * Returns a byte vector copy of the remaining number of bytes that have not been read from the byte vector
      * @return
      */
-    std::vector<uint8_t> unread_data() const
+    [[nodiscard]] std::vector<uint8_t> unread_data() const
     {
         return std::vector<uint8_t>(buffer.begin() + offset, buffer.end());
     }

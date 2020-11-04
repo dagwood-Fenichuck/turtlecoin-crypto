@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -26,6 +26,7 @@
 
 import * as bindings from 'bindings';
 import {
+    crypto_arcturus_signature_t,
     crypto_bulletproof_t,
     crypto_bulletproof_plus_t,
     crypto_clsag_signature_t,
@@ -37,8 +38,10 @@ import {
 import { Reader, Writer } from '@turtlecoin/bytestream';
 import { format } from 'util';
 import * as BigInteger from 'big-integer';
-
-export { crypto_clsag_signature_t, crypto_bulletproof_t, crypto_bulletproof_plus_t, IConfig, LibraryType };
+export {
+    crypto_arcturus_signature_t, crypto_clsag_signature_t, crypto_bulletproof_t, crypto_bulletproof_plus_t,
+    IConfig, LibraryType
+};
 
 /**
  * @ignore
@@ -226,6 +229,76 @@ export class Crypto {
     }
 
     /**
+     * Generates a multi-index proof via the Arcturus proving method
+     * @param message_digest
+     * @param public_keys
+     * @param key_images
+     * @param input_commitments
+     * @param output_commitments
+     * @param real_output_indexes
+     * @param secret_ephemerals
+     * @param input_blinding_factors
+     * @param output_blinding_factors
+     * @param input_amounts
+     * @param output_amounts
+     */
+    public async arcturus_prove (
+        message_digest: string,
+        public_keys: string[],
+        key_images: string[],
+        input_commitments: string[],
+        output_commitments: string[],
+        real_output_indexes: number[],
+        secret_ephemerals: string[],
+        input_blinding_factors: string[],
+        output_blinding_factors: string[],
+        input_amounts: number[],
+        output_amounts: number[]
+    ): Promise<crypto_arcturus_signature_t> {
+        const result = await execute('arcturus_prove',
+            message_digest,
+            public_keys,
+            key_images,
+            input_commitments,
+            output_commitments,
+            real_output_indexes,
+            secret_ephemerals,
+            input_blinding_factors,
+            output_blinding_factors,
+            input_amounts,
+            output_amounts);
+
+        return JSON.parse(result);
+    }
+
+    /**
+     * Verifies an Arcturus proof
+     * @param message_digest
+     * @param public_keys
+     * @param key_images
+     * @param input_commitments
+     * @param output_commitments
+     * @param signature
+     */
+    public async arcturus_verify (
+        message_digest: string,
+        public_keys: string[],
+        key_images: string[],
+        input_commitments: string[],
+        output_commitments: string[],
+        signature: crypto_arcturus_signature_t): Promise<boolean> {
+        const sig = JSON.stringify(signature);
+
+        return execute('arcturus_verify',
+            message_digest,
+            public_keys,
+            key_images,
+            input_commitments,
+            output_commitments,
+            sig);
+    }
+
+    /**
      * Checks that the provided ring signature is valid
      * @param message_digest
      * @param key_image
@@ -296,7 +369,9 @@ export class Crypto {
      */
     public async bulletproofs_prove (
         amounts: number[], blinding_factors: string[]): Promise<[crypto_bulletproof_t, string[]]> {
-        return execute('bulletproofs_prove', amounts, blinding_factors);
+        const [proof, commitments] = await execute('bulletproofs_prove', amounts, blinding_factors);
+
+        return [JSON.parse(proof), commitments];
     }
 
     /**
@@ -306,7 +381,9 @@ export class Crypto {
      */
     public async bulletproofs_verify (
         proofs: crypto_bulletproof_t[], commitments: string[][]): Promise<boolean> {
-        return execute('bulletproofs_verify', proofs, commitments);
+        const proofs_array = JSON.stringify(proofs);
+
+        return execute('bulletproofs_verify', proofs_array, commitments);
     }
 
     /**
@@ -316,7 +393,9 @@ export class Crypto {
      */
     public async bulletproofsplus_prove (
         amounts: number[], blinding_factors: string[]): Promise<[crypto_bulletproof_plus_t, string[]]> {
-        return execute('bulletproofsplus_prove', amounts, blinding_factors);
+        const [proof, commitments] = await execute('bulletproofsplus_prove', amounts, blinding_factors);
+
+        return [JSON.parse(proof), commitments];
     }
 
     /**
@@ -326,7 +405,9 @@ export class Crypto {
      */
     public async bulletproofsplus_verify (
         proofs: crypto_bulletproof_plus_t[], commitments: string[][]): Promise<boolean> {
-        return execute('bulletproofsplus_verify', proofs, commitments);
+        const proofs_array = JSON.stringify(proofs);
+
+        return execute('bulletproofsplus_verify', proofs_array, commitments);
     }
 
     /**
@@ -341,8 +422,10 @@ export class Crypto {
     public async clsag_check_ring_signature (message_digest: string, key_image: string, public_keys: string[],
         signature: crypto_clsag_signature_t, commitments: string[] = [], pseudo_commitment: string = ''
     ): Promise<boolean> {
+        const sig = JSON.stringify(signature);
+
         return execute('clsag_check_ring_signature', message_digest, key_image,
-            public_keys, signature, commitments, pseudo_commitment);
+            public_keys, sig, commitments, pseudo_commitment);
     }
 
     /**
@@ -357,8 +440,12 @@ export class Crypto {
     public async clsag_complete_ring_signature (signing_scalar: string, real_output_index: number,
         signature: crypto_clsag_signature_t, h: string[],
         mu_P: string, partial_signing_scalars: string[] = []): Promise<crypto_clsag_signature_t> {
-        return execute('clsag_complete_ring_signature',
-            signing_scalar, real_output_index, signature, h, mu_P, partial_signing_scalars);
+        const sig = JSON.stringify(signature);
+
+        const result = await execute('clsag_complete_ring_signature',
+            signing_scalar, real_output_index, sig, h, mu_P, partial_signing_scalars);
+
+        return JSON.parse(result);
     }
 
     /**
@@ -385,8 +472,16 @@ export class Crypto {
         public_keys: string[], input_blinding_factor: string = '',
         public_commitments: string[] = [], pseudo_blinding_factor: string = '',
         pseudo_commitment: string = ''): Promise<crypto_clsag_signature_t> {
-        return execute('clsag_generate_ring_signature', message_digest, secret_ephemeral, public_keys,
-            input_blinding_factor, public_commitments, pseudo_blinding_factor, pseudo_commitment);
+        const result = await execute('clsag_generate_ring_signature',
+            message_digest,
+            secret_ephemeral,
+            public_keys,
+            input_blinding_factor,
+            public_commitments,
+            pseudo_blinding_factor,
+            pseudo_commitment);
+
+        return JSON.parse(result);
     }
 
     /**
@@ -405,9 +500,17 @@ export class Crypto {
         input_blinding_factor: string = '', public_commitments: string[] = [],
         pseudo_blinding_factor: string = '', pseudo_commitment: string = ''
     ): Promise<[crypto_clsag_signature_t, string[], string]> {
-        return execute('clsag_prepare_ring_signature', message_digest, key_image, public_keys,
-            real_output_index, input_blinding_factor, public_commitments, pseudo_blinding_factor,
+        const [signature, h, mu_P] = await execute('clsag_prepare_ring_signature',
+            message_digest,
+            key_image,
+            public_keys,
+            real_output_index,
+            input_blinding_factor,
+            public_commitments,
+            pseudo_blinding_factor,
             pseudo_commitment);
+
+        return [JSON.parse(signature), h, mu_P];
     }
 
     /**
@@ -682,10 +785,18 @@ export class Crypto {
     }
 
     /**
+     * Calculates the exponent of 2^e that matches the target value
+     * @param value
+     */
+    public async calculate_base2_exponent (value: number): Promise<number> {
+        return execute('calculate_base2_exponent', value);
+    }
+
+    /**
      * Checks the given value to verify if it is a point on the curve
      * @param point
      */
-    public check_point (point: string): Promise<boolean> {
+    public async check_point (point: string): Promise<boolean> {
         return execute('check_point', point);
     }
 
@@ -693,7 +804,7 @@ export class Crypto {
      * Checks the given value to verify that it is a scalar value
      * @param scalar
      */
-    public check_scalar (scalar: string): Promise<boolean> {
+    public async check_scalar (scalar: string): Promise<boolean> {
         return execute('check_scalar', scalar);
     }
 
@@ -742,6 +853,14 @@ export class Crypto {
     public async generate_key_image (
         public_emphemeral: string, secret_ephemeral: string, partial_key_images: string[] = []): Promise<string> {
         return execute('generate_key_image', public_emphemeral, secret_ephemeral, partial_key_images);
+    }
+
+    /**
+     * Generates a v2 key image such that
+     * @param secret_ephemeral
+     */
+    public async generate_key_image_v2 (secret_ephemeral: string): Promise<string> {
+        return execute('generate_key_image_v2', secret_ephemeral);
     }
 
     /**

@@ -99,6 +99,11 @@ jobs:
       run: npm install -g yarn
     - name: Install Dependencies
       run: yarn
+    - name: Execute EMScripten Build Process (Windows)
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        ./scripts/build_js.sh
     - name: Check Typescript Style
       run: yarn style
     - name: Compile Typescript
@@ -110,7 +115,7 @@ jobs:
     - name: Execute WASM Unit Tests
       run: yarn test-wasm
     - name: Generate Prebuilds
-      if: matrix.node == '12' && github.event_name == 'release' && matrix.os != 'windows-latest'
+      if: matrix.node == '12' && github.event_name == 'release'
       run: |
         yarn prebuild-all --strip
         yarn prebuild-all --strip -u ${{ secrets.GITHUB_TOKEN }}

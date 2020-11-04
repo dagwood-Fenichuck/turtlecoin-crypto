@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -37,6 +37,9 @@ namespace Crypto::Signature
         const crypto_public_key_t &public_key,
         const crypto_signature_t &signature)
     {
+        if (!signature.LR.L.check() || !signature.LR.R.check())
+            return false;
+
         // P = [(l * P) + (r * G)] mod l
         const auto point = (signature.LR.L * public_key) + (signature.LR.R * G);
 
@@ -51,6 +54,12 @@ namespace Crypto::Signature
         const crypto_signature_t &signature,
         const std::vector<crypto_scalar_t> &partial_signing_scalars)
     {
+        SCALAR_OR_THROW(signing_scalar);
+
+        SCALAR_OR_THROW(signature.LR.L);
+
+        SCALAR_OR_THROW(signature.LR.R);
+
         auto finalized_signature = signature;
 
         if (partial_signing_scalars.empty() && signing_scalar != Crypto::ZERO)
@@ -59,6 +68,9 @@ namespace Crypto::Signature
         }
         else if (!partial_signing_scalars.empty())
         {
+            for (const auto &partial_signing_scalar : partial_signing_scalars)
+                SCALAR_OR_THROW(partial_signing_scalar);
+
             // create a copy of our partial signing scalars for computation and handling
             crypto_scalar_vector_t keys(partial_signing_scalars);
 
@@ -89,12 +101,20 @@ namespace Crypto::Signature
         const crypto_signature_t &signature,
         const crypto_secret_key_t &spend_secret_key)
     {
+        SCALAR_OR_THROW(spend_secret_key);
+
+        SCALAR_OR_THROW(signature.LR.L);
+
+        SCALAR_OR_THROW(signature.LR.R);
+
         // asL = (s.L * a) mod l
         return signature.LR.L * spend_secret_key;
     }
 
     crypto_signature_t generate_signature(const crypto_hash_t &message_digest, const crypto_secret_key_t &secret_key)
     {
+        SCALAR_OR_THROW(secret_key);
+
         // A = (a * G) mod l
         const auto public_key = secret_key * G;
 

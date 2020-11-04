@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -36,6 +36,24 @@ static const crypto_scalar_t VIEWKEY_DOMAIN_0 = Crypto::hash_to_scalar(SUBWALLET
 
 namespace Crypto
 {
+    std::tuple<bool, size_t> calculate_base2_exponent(const size_t &target_value)
+    {
+        const auto rounded = pow2_round(target_value);
+
+        if (rounded != target_value)
+            return {false, 0};
+
+        for (size_t exponent = 0; exponent < 63; ++exponent)
+        {
+            const auto val = 1 << exponent;
+
+            if (val == target_value)
+                return {true, exponent};
+        }
+
+        return {false, 0};
+    }
+
     crypto_scalar_t derivation_to_scalar(const crypto_derivation_t &derivation, uint64_t output_index)
     {
         struct
@@ -58,6 +76,8 @@ namespace Crypto
     crypto_public_key_t
         derive_public_key(const crypto_scalar_t &derivation_scalar, const crypto_public_key_t &public_key)
     {
+        SCALAR_OR_THROW(derivation_scalar);
+
         // P = [A + (Ds * G)] mod l
         return (derivation_scalar * Crypto::G) + public_key;
     }
@@ -65,6 +85,8 @@ namespace Crypto
     crypto_secret_key_t
         derive_secret_key(const crypto_scalar_t &derivation_scalar, const crypto_secret_key_t &secret_key)
     {
+        SCALAR_OR_THROW(derivation_scalar);
+
         // p = (Ds + a) mod l
         return derivation_scalar + secret_key;
     }
@@ -72,6 +94,8 @@ namespace Crypto
     crypto_derivation_t
         generate_key_derivation(const crypto_public_key_t &public_key, const crypto_secret_key_t &secret_key)
     {
+        SCALAR_OR_THROW(secret_key);
+
         // D = (a * B) mod l
         return (secret_key * public_key).mul8();
     }
@@ -79,6 +103,8 @@ namespace Crypto
     crypto_key_image_t
         generate_key_image(const crypto_public_key_t &public_ephemeral, const crypto_secret_key_t &secret_ephemeral)
     {
+        SCALAR_OR_THROW(secret_ephemeral);
+
         // I = [Hp(P) * x] mod l
         return secret_ephemeral * hash_to_point(public_ephemeral);
     }
@@ -88,6 +114,8 @@ namespace Crypto
         const crypto_scalar_t &derivation_scalar,
         const std::vector<crypto_key_image_t> &partial_key_images)
     {
+        SCALAR_OR_THROW(derivation_scalar);
+
         crypto_point_vector_t key_images(partial_key_images);
 
         // I_d = (Ds * P) mod l
@@ -97,6 +125,13 @@ namespace Crypto
 
         // I = [I_d + (pk1 + pk2 + pk3 ...)] mod l
         return key_images.dedupe_sort().sum();
+    }
+
+    crypto_key_image_t generate_key_image_v2(const crypto_secret_key_t &secret_ephemeral)
+    {
+        SCALAR_OR_THROW(secret_ephemeral);
+
+        return secret_ephemeral.invert() * Crypto::U;
     }
 
     std::tuple<crypto_public_key_t, crypto_secret_key_t> generate_keys()
@@ -110,6 +145,8 @@ namespace Crypto
     std::tuple<crypto_public_key_t, crypto_secret_key_t>
         generate_subwallet_keys(const crypto_secret_key_t &spend_secret_key, uint64_t subwallet_index)
     {
+        SCALAR_OR_THROW(spend_secret_key);
+
         if (subwallet_index == 0)
             return {spend_secret_key * G, spend_secret_key};
 
@@ -134,6 +171,8 @@ namespace Crypto
 
     crypto_secret_key_t generate_view_from_spend(const crypto_secret_key_t &spend_secret_key)
     {
+        SCALAR_OR_THROW(spend_secret_key);
+
         struct
         {
             crypto_scalar_t domain;
@@ -221,6 +260,8 @@ namespace Crypto
 
     crypto_public_key_t secret_key_to_public_key(const crypto_secret_key_t &secret_key)
     {
+        SCALAR_OR_THROW(secret_key);
+
         // A = (a * G) mod l
         return secret_key * Crypto::G;
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from Python code by Sarang Noether found at
+// Inspired by the work of Sarang Noether found at
 // https://github.com/SarangNoether/skunkworks/tree/clsag
 
 #ifndef CRYPTO_RING_SIGNATURE_CLSAG_H
@@ -46,38 +46,66 @@ typedef struct CLSAGSignature
     {
     }
 
-    CLSAGSignature(const JSONValue &j)
-    {
-        from_json(j);
-    }
-
-    CLSAGSignature(const JSONValue &j, const std::string &key)
-    {
-        const auto &val = get_json_value(j, key);
-
-        if (!val.IsObject())
-            throw std::invalid_argument("JSON value is of the wrong type");
-
-        from_json(val);
-    }
+    JSON_OBJECT_CONSTRUCTORS(CLSAGSignature, from_json)
 
     CLSAGSignature(const std::string &input)
     {
         const auto string = Crypto::StringTools::from_hex(input);
 
-        deserialize(string);
+        deserializer_t reader(string);
+
+        deserialize(reader);
     }
 
     CLSAGSignature(const std::vector<uint8_t> &input)
     {
-        deserialize(input);
+        deserializer_t reader(input);
+
+        deserialize(reader);
     }
 
-    std::vector<uint8_t> serialize() const
+    CLSAGSignature(deserializer_t &reader)
     {
-        serializer_t writer;
+        deserialize(reader);
+    }
 
-        writer.varint<uint64_t>(scalars.size());
+    /**
+     * Deserializes the struct from a byte array
+     * @param reader
+     */
+    void deserialize(deserializer_t &reader)
+    {
+        const auto scalar_count = reader.varint<uint64_t>();
+
+        scalars.clear();
+
+        for (size_t i = 0; i < scalar_count; ++i)
+            scalars.push_back(reader.key<crypto_scalar_t>());
+
+        challenge = reader.key<crypto_scalar_t>();
+
+        if (reader.boolean())
+            commitment_image = reader.key<crypto_key_image_t>();
+    }
+
+    /**
+     * Provides the hash of the serialized structure
+     * @return
+     */
+    [[nodiscard]] crypto_hash_t hash() const
+    {
+        const auto serialized = serialize();
+
+        return Crypto::Hashing::sha3(serialized.data(), serialized.size());
+    }
+
+    /**
+     * Serializes the struct to a byte array
+     * @param writer
+     */
+    void serialize(serializer_t &writer) const
+    {
+        writer.varint(scalars.size());
 
         for (const auto &val : scalars)
             writer.key(val);
@@ -94,15 +122,34 @@ typedef struct CLSAGSignature
         {
             writer.boolean(false);
         }
+    }
+
+    /**
+     * Serializes the struct to a byte array
+     * @return
+     */
+    [[nodiscard]] std::vector<uint8_t> serialize() const
+    {
+        serializer_t writer;
+
+        serialize(writer);
 
         return writer.vector();
     }
 
-    size_t size() const
+    /**
+     * Returns the serialized byte size
+     * @return
+     */
+    [[nodiscard]] size_t size() const
     {
         return serialize().size();
     }
 
+    /**
+     * Writes the structure as JSON to the provided writer
+     * @param writer
+     */
     void toJSON(rapidjson::Writer<rapidjson::StringBuffer> &writer) const
     {
         writer.StartObject();
@@ -127,7 +174,11 @@ typedef struct CLSAGSignature
         writer.EndObject();
     }
 
-    std::string to_string() const
+    /**
+     * Returns the hex encoded serialized byte array
+     * @return
+     */
+    [[nodiscard]] std::string to_string() const
     {
         const auto bytes = serialize();
 
@@ -139,43 +190,23 @@ typedef struct CLSAGSignature
     crypto_scalar_t challenge;
 
   private:
-    void from_json(const JSONValue &j)
+    JSON_FROM_FUNC(from_json)
     {
-        if (!j.IsObject())
-            throw std::invalid_argument("JSON value is of the wrong type");
+        JSON_OBJECT_OR_THROW();
 
-        if (!has_member(j, "scalars"))
-            throw std::invalid_argument("scalars not found in JSON object");
-
-        if (!has_member(j, "challenge"))
-            throw std::invalid_argument("challenge not found in JSON object");
-
-        if (has_member(j, "commitment_image"))
-            commitment_image = get_json_string(j, "commitment_image");
-
-        challenge = get_json_string(j, "challenge");
+        JSON_MEMBER_OR_THROW("scalars");
 
         scalars.clear();
 
         for (const auto &elem : get_json_array(j, "scalars"))
             scalars.emplace_back(get_json_string(elem));
-    }
 
-    void deserialize(const std::vector<uint8_t> &input)
-    {
-        deserializer_t reader(input);
+        JSON_MEMBER_OR_THROW("challenge");
 
-        const auto scalar_count = reader.varint<uint64_t>();
+        challenge = get_json_string(j, "challenge");
 
-        scalars.clear();
-
-        for (size_t i = 0; i < scalar_count; ++i)
-            scalars.push_back(reader.key<crypto_scalar_t>());
-
-        challenge = reader.key<crypto_scalar_t>();
-
-        if (reader.boolean())
-            commitment_image = reader.key<crypto_key_image_t>();
+        JSON_IF_MEMBER("commitment_image")
+        commitment_image = get_json_string(j, "commitment_image");
     }
 } crypto_clsag_signature_t;
 

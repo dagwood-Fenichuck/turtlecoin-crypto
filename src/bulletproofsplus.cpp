@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -24,7 +24,7 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 // THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
-// Adapted from Python code by Sarang Noether found at
+// Inspired by the work of Sarang Noether at
 // https://github.com/SarangNoether/skunkworks/tree/pybullet-plus
 
 #include "bulletproofsplus.h"
@@ -133,9 +133,9 @@ namespace Crypto::RangeProofs::BulletproofsPlus
 
                 const auto dL = Crypto::random_scalar(), dR = Crypto::random_scalar();
 
-                const auto cL = InnerProductRound::wip(a1, b2, y);
+                const auto cL = weighted_inner_product(a1, b2, y);
 
-                const auto cR = InnerProductRound::wip(a2 * y.pow(n), b1, y);
+                const auto cR = weighted_inner_product(a2 * y.pow(n), b1, y);
 
                 const auto ypow = y.pow(n), yinvpow = y.invert().pow(n);
 
@@ -199,8 +199,10 @@ namespace Crypto::RangeProofs::BulletproofsPlus
         }
 
       private:
-        static crypto_scalar_t
-            wip(const crypto_scalar_vector_t &a, const crypto_scalar_vector_t &b, const crypto_scalar_t &y)
+        static crypto_scalar_t weighted_inner_product(
+            const crypto_scalar_vector_t &a,
+            const crypto_scalar_vector_t &b,
+            const crypto_scalar_t &y)
         {
             if (a.size() != b.size())
                 throw std::invalid_argument("weighted inner product vectors must be of the same size");
@@ -239,8 +241,7 @@ namespace Crypto::RangeProofs::BulletproofsPlus
             throw std::runtime_error("amounts is empty");
 
         for (const auto &blinding_factor : blinding_factors)
-            if (!blinding_factor.check())
-                throw std::runtime_error("invalid gamma input");
+            SCALAR_OR_THROW(blinding_factor);
 
         const auto M = amounts.size();
 
@@ -364,6 +365,9 @@ namespace Crypto::RangeProofs::BulletproofsPlus
                 return false;
 
             if (proof.L.size() != proof.R.size())
+                return false;
+
+            if (!proof.r1.check() || !proof.s1.check() || !proof.d1.check())
                 return false;
 
             crypto_scalar_transcript_t tr(BULLETPROOFS_PLUS_DOMAIN_0);

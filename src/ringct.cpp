@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -57,6 +57,8 @@ namespace Crypto::RingCT
 
     crypto_scalar_t generate_amount_mask(const crypto_scalar_t &derivation_scalar)
     {
+        SCALAR_OR_THROW(derivation_scalar);
+
         crypto_scalar_transcript_t transcript(DOMAIN_AMOUNT_MASK, derivation_scalar);
 
         return transcript.challenge();
@@ -64,6 +66,8 @@ namespace Crypto::RingCT
 
     crypto_blinding_factor_t generate_commitment_blinding_factor(const crypto_scalar_t &derivation_scalar)
     {
+        SCALAR_OR_THROW(derivation_scalar);
+
         crypto_scalar_transcript_t transcript(DOMAIN_COMMITMENT_MASK, derivation_scalar);
 
         return transcript.challenge();
@@ -72,6 +76,8 @@ namespace Crypto::RingCT
     crypto_pedersen_commitment_t
         generate_pedersen_commitment(const crypto_scalar_t &blinding_factor, const uint64_t &amount)
     {
+        SCALAR_OR_THROW(blinding_factor);
+
         // r = (amount * H) + (f * G)
         return crypto_scalar_t(amount).dbl_mult(Crypto::H, blinding_factor, Crypto::G);
     }
@@ -81,6 +87,9 @@ namespace Crypto::RingCT
             const std::vector<uint64_t> &input_amounts,
             const std::vector<crypto_blinding_factor_t> &output_blinding_factors)
     {
+        for (const auto &output_blinding_factor : output_blinding_factors)
+            SCALAR_OR_THROW(output_blinding_factor);
+
         // tally up the output blinding factors
         const auto sum_of_outputs = crypto_scalar_vector_t(output_blinding_factors).sum();
 
@@ -114,6 +123,10 @@ namespace Crypto::RingCT
 
     crypto_scalar_t toggle_masked_amount(const crypto_scalar_t &amount_mask, const crypto_scalar_t &amount)
     {
+        SCALAR_OR_THROW(amount_mask);
+
+        SCALAR_OR_THROW(amount);
+
         /**
          * By creating a new scalar of just the first 8 bytes of the amount then
          * we are guaranteed to have the last 24 bytes as empty (zeros) and thus

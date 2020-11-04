@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020-2021, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -31,6 +31,7 @@
 #include "bulletproofsplus.h"
 #include "crypto_common.h"
 #include "multisig.h"
+#include "ring_signature_arcturus.h"
 #include "ring_signature_borromean.h"
 #include "ring_signature_clsag.h"
 #include "ringct.h"

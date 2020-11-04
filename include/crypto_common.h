@@ -1,4 +1,4 @@
-// Copyright (c) 2020, Brandon Lehmann <brandonlehmann@gmail.com>
+// Copyright (c) 2020-2021, The TurtleCoin Developers
 //
 // Redistribution and use in source and binary forms, with or without modification, are
 // permitted provided that the following conditions are met:
@@ -32,6 +32,13 @@
 
 namespace Crypto
 {
+    /**
+     * Calculates the exponent of 2^e that matches the target value
+     * @param target_value
+     * @return
+     */
+    std::tuple<bool, size_t> calculate_base2_exponent(const size_t &target_value);
+
     /**
      * Checks to validate that the given value is a point on the curve
      * @param value
@@ -119,6 +126,14 @@ namespace Crypto
         const crypto_public_key_t &public_ephemeral,
         const crypto_scalar_t &derivation_scalar,
         const std::vector<crypto_key_image_t> &partial_key_images);
+
+    /**
+     * Generates a v2 key image such that
+     * I = (1/x) * U
+     * @param secret_ephemeral
+     * @return
+     */
+    crypto_key_image_t generate_key_image_v2(const crypto_secret_key_t &secret_ephemeral);
 
     /**
      * Generates a set of random keys
